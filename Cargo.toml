@@ -1,0 +1,20 @@
+[package]
+name = "constructivist"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = [
+    "crates/constructivist-core"
+    # "crates/belly_cli",
+    # "crates/belly_core",
+    # "crates/belly_macro",
+    # "crates/belly_widgets",
+    # "crates/bevy_stylebox",
+    # "crates/tagstr",
+    # "crates/bevy_mod_props",
+]
+
+[dependencies]
