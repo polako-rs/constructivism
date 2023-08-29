@@ -7,7 +7,8 @@ edition = "2021"
 
 [workspace]
 members = [
-    "crates/constructivist-core"
+    "crates/constructivist_core",
+    "crates/constructivist_macro_support",
     # "crates/belly_cli",
     # "crates/belly_core",
     # "crates/belly_macro",
@@ -18,3 +19,5 @@ members = [
 ]
 
 [dependencies]
+constructivist_core = { path = "crates/constructivist_core" }
+constructivist_macro_support = { path = "crates/constructivist_macro_support" }
