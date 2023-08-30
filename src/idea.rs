@@ -4,7 +4,7 @@ macro_rules! construct {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
             let fields = <$t>::construct_fields();
-            let params = <$t>::construct_params();
+            let params = <<$t as Construct>::Params as IntoParams>::into_params();
             $(
                 let param = fields.$f();
                 let param = params
@@ -21,90 +21,203 @@ macro_rules! construct {
 
 #[test]
 fn test_main() {
-    let user = construct!(User {
-        age: 23.,
+    // ttt(name="asd".into(), age=23);
+    let slider = construct!(Slider {
+        max: 23.,
     });
-    assert_eq!(user, User { name: "".into(), age: 23.});
+    assert_eq!(slider, Slider { min: 0., max: 23., val: 0.});
+
+    let slider_label = {
+        let fields = <SliderLabel>::construct_fields();
+        let params = <<SliderLabel as Construct>::Params as IntoParams>::into_params();
+        let wrapped = <<SliderLabel as Construct>::WrappedParams as IntoParams>::into_params();
+        let param = fields.value();
+        let param = params
+            .extract_field(&param.field())
+            .define(param.field().into_field_value("Hello?"));
+        let params = params + param;
+        // let param = fields.val();
+        // let param = params
+        //     .extract_field(&param.field())
+        //     .define(param.field().into_field_value(32.));
+        // let params = params + param;
+        <SliderLabel>::construct(params.extract_values())
+    };
+
 }
 
 // #[derive(Construct)]
 #[derive(Debug, PartialEq)]
-struct User {
-    name: String,
-    age: f32,
+pub struct Slider {
+    min: f32,
+    max: f32,
+    val: f32,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SliderLabel {
+    value: String
 }
 
 // output of derive:
 
-impl Construct for User {
-    type Fields = user_construct::Fields;
-    type UndefinedParams = (user_construct::name, user_construct::age);
-    type DefinedParams = (user_construct::name, user_construct::age);
+impl Construct for Slider {
+    type Fields = slider_construct::Fields;
+    type Params = (slider_construct::min, slider_construct::max, slider_construct::val);
+    type Wraps = ();
+    type Wrapped = (Self, <Self::Wraps as Construct>::Wrapped);
+    type WrappedParams = (
+        slider_construct::min, slider_construct::max, slider_construct::val,
+        <Self::Wraps as Construct>::WrappedParams
+    );
     fn construct_fields() -> &'static Self::Fields {
-        &user_construct::Fields
+        slider_construct::Fields::instance()
     }
-    fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target> {
-        <Self::UndefinedParams>::into_params()
-    }
-    
-    fn construct(params: Self::DefinedParams)-> Self {
-        let (user_construct::name(name), user_construct::age(age)) = params;
-        Self { name, age }
+
+    fn construct(params: Self::Params)-> Self {
+        let (slider_construct::min(min), slider_construct::max(max), slider_construct::val(val)) = params;
+        Self { min, max, val }
     }
 }
 
-// impl<A: Construct<2>, B: Construct<2>> Construct<4> for (A, B) {
-//     type Fields = (A::Fields, B::Fields);
-//     type UndefinedParams = ;
-// }
 
-mod user_construct {
+mod slider_construct {
     use super::*;
     #[allow(non_camel_case_types)]
     #[derive(Default)]
-    pub struct name(pub String);
+    pub struct min(pub f32);
 
 
     #[allow(non_camel_case_types)]
     #[derive(Default)]
-    pub struct age(pub f32);
+    pub struct max(pub f32);
 
-    impl IntoField for name {
+    #[allow(non_camel_case_types)]
+    #[derive(Default)]
+    pub struct val(pub f32);
+
+    impl IntoField for min {
         fn into_field() -> Field<Self> {
             Field(PhantomData)
         }
     }
 
-    impl IntoField for age {
+    impl IntoField for max {
+        fn into_field() -> Field<Self> {
+            Field(PhantomData)
+        }
+    }
+    impl IntoField for val {
         fn into_field() -> Field<Self> {
             Field(PhantomData)
         }
     }
 
-    impl<T: Into<String>> IntoFieldValue<T> for Field<name> {
-        type Output = name;
+    impl<T: Into<f32>> IntoFieldValue<T> for Field<min> {
+        type Output = min;
         fn into_field_value(self, value: T) -> Self::Output {
-            name(value.into())
+            min(value.into())
         }    
     }
 
-    impl<T: Into<f32>> IntoFieldValue<T> for Field<age> {
-        type Output = age;
+    impl<T: Into<f32>> IntoFieldValue<T> for Field<max> {
+        type Output = max;
         fn into_field_value(self, value: T) -> Self::Output {
-            age(value.into())
+            max(value.into())
+        }    
+    }
+    impl<T: Into<f32>> IntoFieldValue<T> for Field<val> {
+        type Output = val;
+        fn into_field_value(self, value: T) -> Self::Output {
+            val(value.into())
         }    
     }
 
-    pub struct Fields;
+    pub struct Fields(PhantomData<<<Slider as Construct>::Wraps as Construct>::Fields>);
+    impl Singleton for Fields {
+        fn instance() -> &'static Self {
+            &Fields(PhantomData)
+        }
+    }
+    impl std::ops::Deref for Fields {
+        type Target = <<Slider as Construct>::Wraps as Construct>::Fields;
+        fn deref(&self) -> &Self::Target {
+            <<<Slider as Construct>::Wraps as Construct>::Fields as Singleton>::instance()
+        }
+    }
     impl Fields {
         #[allow(unused)]
-        pub fn name(&self) -> Param<name, String> {
+        pub fn min(&self) -> Param<min, f32> {
             Param::new()
         }
         #[allow(unused)]
-        pub fn age(&self) -> Param<age, f32> {
+        pub fn max(&self) -> Param<max, f32> {
             Param::new()
         }
+        #[allow(unused)]
+        pub fn val(&self) -> Param<val, f32> {
+            Param::new()
+        }
+    }
+}
+
+impl Construct for SliderLabel {
+    type Fields = slider_label_construct::Fields;
+    type Params = (
+        slider_label_construct::value,
+        // <SliderLabel as Construct>::Params,
+    );
+    type Wraps = Slider;
+    type Wrapped = (Self, <Self::Wraps as Construct>::Wrapped);
+    type WrappedParams = (slider_label_construct::value, <Self::Wraps as Construct>::WrappedParams);
+    fn construct_fields() -> &'static Self::Fields {
+        slider_label_construct::Fields::instance()
+    }
+
+    fn construct(params: Self::Params)-> Self {
+        let (slider_label_construct::value(value),) = params;
+        Self { value }
+    }
+}
+
+mod slider_label_construct {
+    use super::*;
+    #[allow(non_camel_case_types)]
+    #[derive(Default)]
+    pub struct value(pub String);
+
+
+    impl IntoField for value {
+        fn into_field() -> Field<Self> {
+            Field(PhantomData)
+        }
+    }
+
+    impl<T: Into<String>> IntoFieldValue<T> for Field<value> {
+        type Output = value;
+        fn into_field_value(self, v: T) -> Self::Output {
+            value(v.into())
+        }    
+    }
+
+    pub struct Fields(PhantomData<<<Slider as Construct>::Wraps as Construct>::Fields>);
+    impl Singleton for Fields {
+        fn instance() -> &'static Self {
+            &Fields(PhantomData)
+        }
+    }
+    impl std::ops::Deref for Fields {
+        type Target = <<SliderLabel as Construct>::Wraps as Construct>::Fields;
+        fn deref(&self) -> &Self::Target {
+            <<<SliderLabel as Construct>::Wraps as Construct>::Fields as Singleton>::instance()
+        }
+    }
+    impl Fields {
+        #[allow(unused)]
+        pub fn value(&self) -> Param<value, String> {
+            Param::new()
+        }
+        
     }
 }
 
@@ -113,12 +226,14 @@ mod user_construct {
 // hand written:
 
 pub trait Construct {
-    type Fields: 'static;
-    type UndefinedParams: IntoParams;
-    type DefinedParams;
+    type Fields: Singleton;
+    type Params: IntoParams;
+    type Wraps: Construct;
+    type Wrapped;
+    type WrappedParams;
     fn construct_fields() -> &'static Self::Fields;
-    fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target>;
-    fn construct(params: Self::DefinedParams)-> Self;
+    // fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target>;
+    fn construct(params: Self::Params)-> Self;
     // fn split_params<T: SplitAt<{I}>>(params: T) -> (T::Left, T::Right){
     //     T::split(params)
     // }
@@ -126,17 +241,19 @@ pub trait Construct {
 
 impl Construct for () {
     type Fields = ();
-    type DefinedParams = ();
-    type UndefinedParams = ();
+    type Params = ();
+    type Wraps = ();
+    type Wrapped = ();
+    type WrappedParams = ();
     fn construct_fields() -> &'static Self::Fields {
         &()
     }
-    fn construct(_: Self::DefinedParams)-> Self {
+    fn construct(_: Self::Params)-> Self {
         ()
     }
-    fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target> {
-        Params(())
-    }
+    // fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target> {
+    //     Params(())
+    // }
 }
 
 // pub fn split<const I: usize, T:SplitAt<I>
@@ -158,6 +275,16 @@ pub struct U<const I: u8, T>(PhantomData<T>);
 struct F<const I: u8, T>(PhantomData<T>);
 
 trait A<const I: u8, T> { }
+
+pub trait Singleton {
+    fn instance() -> &'static Self;
+}
+
+impl Singleton for () {
+    fn instance() -> &'static Self {
+        &()
+    }
+}
 
 trait ExtractField<F, T> {
     fn extract_field(&self, f: &Field<T>) -> F;
@@ -476,7 +603,7 @@ impl<T0: IntoField, T1: IntoField> IntoParams for (T0, T1, ()) {
         Params((U::<0, _>(PhantomData), U::<1, _>(PhantomData)))
     }
 }
-impl<T0: IntoField, T1: IntoField> IntoParams for (T0, (T1,)) {
+impl<T0: IntoField, T1: IntoField> IntoParams for (T0, (T1, ())) {
     type Target = (U<0, T0>, U<1, T1>);
     fn into_params() -> Params<Self::Target> {
         Params((U::<0, _>(PhantomData), U::<1, _>(PhantomData)))
@@ -493,8 +620,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2) {
         ))
     }
 }
-
-impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, (T2,)) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2, ()) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -505,7 +631,18 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, (T2,))
     }
 }
 
-impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, (T1, T2)) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, (T2, ())) {
+    type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
+    fn into_params() -> Params<Self::Target> {
+        Params((
+            U::<0, _>(PhantomData),
+            U::<1, _>(PhantomData),
+            U::<2, _>(PhantomData),
+        ))
+    }
+}
+
+impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, (T1, T2, ())) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -527,7 +664,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, (T3,)) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, T3, ()) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -538,7 +675,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, T3,)) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, (T3, ())) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -549,7 +686,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, T3,)) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, T3, ())) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -560,7 +697,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, (T3,))) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, T3, ())) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -571,7 +708,7 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, (T3,))) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, (T3, ()))) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -582,7 +719,18 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         ))
     }
 }
-impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, (T2, (T3,)))) {
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, (T3, ()))) {
+    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
+    fn into_params() -> Params<Self::Target> {
+        Params((
+            U::<0, _>(PhantomData),
+            U::<1, _>(PhantomData),
+            U::<2, _>(PhantomData),
+            U::<3, _>(PhantomData),
+        ))
+    }
+}
+impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, (T2, (T3, ())))) {
     type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
     fn into_params() -> Params<Self::Target> {
         Params((
@@ -617,20 +765,3 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
         
 //     }
 // }
-
-struct min(f32);
-struct max(f32);
-struct label(String);
-struct color(String);
-trait Widget {
-    // type Params: IntoParams;
-}
-
-struct RangeWidget;
-impl Widget for RangeWidget {
-    // type Params = (U<0, min>, U<1, max>);
-}
-
-
-
-// impl Widget<4, (U<0, min>, U<0, max>) for 
