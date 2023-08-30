@@ -13,7 +13,8 @@ macro_rules! construct {
                 let params = params + param;
             )+
             // let (params, _rest) = <$t>::split_params(params);
-            <$t>::construct(params.extract_values())
+            let (params, _rest) = <Params<_> as ExtractValues<<$t as Construct>::Params>>::extract_values(params);
+            <$t>::construct(params)
         }
         
     };
@@ -29,8 +30,8 @@ fn test_main() {
 
     let slider_label = {
         let fields = <SliderLabel>::construct_fields();
-        let params = <<SliderLabel as Construct>::Params as IntoParams>::into_params();
-        let wrapped = <<SliderLabel as Construct>::WrappedParams as IntoParams>::into_params();
+        // let params = <<SliderLabel as Construct>::Params as IntoParams>::into_params();
+        let params = <<SliderLabel as Construct>::WrappedParams as IntoParams>::into_params();
         let param = fields.value();
         let param = params
             .extract_field(&param.field())
@@ -41,7 +42,9 @@ fn test_main() {
         //     .extract_field(&param.field())
         //     .define(param.field().into_field_value(32.));
         // let params = params + param;
-        <SliderLabel>::construct(params.extract_values())
+        let all_structs = SliderLabel::construct_all(params);
+        // let (values, params) = <Params<_> as ExtractValues<<SliderLabel as Construct>::Params>>::extract_values(params);
+        // <SliderLabel>::construct(values)
     };
 
 }
@@ -77,6 +80,19 @@ impl Construct for Slider {
     fn construct(params: Self::Params)-> Self {
         let (slider_construct::min(min), slider_construct::max(max), slider_construct::val(val)) = params;
         Self { min, max, val }
+    }
+
+    fn construct_all<P>(params: P) -> <Self as Construct>::Wrapped
+    where 
+        Self: Sized,
+        P: ExtractValues<Self::Params, Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target >,
+        // O: ExtractValues<
+        //     <<Self as Construct>::Wraps as Construct>::Params,
+        //     Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target
+        // >
+    {
+        let (args, params) = params.extract_values();
+        (Self::construct(args), ())
     }
 }
 
@@ -178,6 +194,30 @@ impl Construct for SliderLabel {
         let (slider_label_construct::value(value),) = params;
         Self { value }
     }
+    fn construct_all<P>(params: P) -> <Self as Construct>::Wrapped
+    where 
+        Self: Sized,
+        P: ExtractValues<Self::Params, Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target >,
+        // O: ExtractValues<
+        //     <<Self as Construct>::Wraps as Construct>::Params,
+        //     Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target
+        // >
+    {
+        let (args, params) = params.extract_values();
+        (Self::construct(args), <<Self as Construct>::Wraps as Construct>::construct_all(params))
+    }
+
+    // fn construct_all<P, O>(params: P) -> <Self as Construct>::Wrapped
+    //     where 
+    //         Self: Sized,
+    //         P: ExtractValues<Self::Params, Output = O>,
+    //         O: ExtractValues<<<<Self as Construct>::Wraps as Construct>::Params as ExtractValues<
+    //             <<Self as Construct>::Wraps as Construct>::Params
+    //         >>::Output>
+    // { 
+    //     let (values, params) = P::extract_values(params);
+    //     (Self::construct(values), <Self::Wraps as Construct>::construct_all(params))   
+    // }
 }
 
 mod slider_label_construct {
@@ -230,13 +270,17 @@ pub trait Construct {
     type Params: IntoParams;
     type Wraps: Construct;
     type Wrapped;
-    type WrappedParams;
+    type WrappedParams: IntoParams;
     fn construct_fields() -> &'static Self::Fields;
     // fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target>;
     fn construct(params: Self::Params)-> Self;
     // fn split_params<T: SplitAt<{I}>>(params: T) -> (T::Left, T::Right){
     //     T::split(params)
     // }
+    fn construct_all<P>(params: P) -> <Self as Construct>::Wrapped
+    where 
+        Self: Sized,
+        P: ExtractValues<Self::Params, Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target >;
 }
 
 impl Construct for () {
@@ -251,6 +295,18 @@ impl Construct for () {
     fn construct(_: Self::Params)-> Self {
         ()
     }
+    fn construct_all<P>(_: P) -> <Self as Construct>::Wrapped
+    where 
+        Self: Sized,
+        P: ExtractValues<Self::Params, Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target >,
+        // O: ExtractValues<
+        //     <<Self as Construct>::Wraps as Construct>::Params,
+        //     Output = <<<Self as Construct>::Wraps as Construct>::WrappedParams as IntoParams>::Target
+        // >
+    {
+        ()
+    }
+    
     // fn construct_params() -> Params<<<Self as Construct>::UndefinedParams as IntoParams>::Target> {
     //     Params(())
     // }
@@ -304,9 +360,9 @@ pub trait MoveTo<const I: u8> {
     fn move_to(self) -> Self::Target;
 }
 
-trait ExtractValues {
-    type Values;
-    fn extract_values(self) -> Self::Values;
+pub trait ExtractValues<T> {
+    type Output;
+    fn extract_values(self) -> (T, Self::Output);
 }
 
 
@@ -405,6 +461,23 @@ impl<T2, A0, A1, A2: A<2, T2>> ExtractField<F<2, T2>, T2> for Params<(A0, A1, A2
         F::<2, T2>(PhantomData)
     }
 }
+
+
+impl<T0, A0: A<0, T0>, A1, A2, A3> ExtractField<F<0, T0>, T0> for Params<(A0, A1, A2, A3)> {
+    fn extract_field(&self, _: &Field<T0>) -> F<0, T0> {
+        F::<0, T0>(PhantomData)
+    }
+}
+impl<T1, A0, A1: A<1, T1>, A2, A3> ExtractField<F<1, T1>, T1> for Params<(A0, A1, A2, A3)> {
+    fn extract_field(&self, _: &Field<T1>) -> F<1, T1> {
+        F::<1, T1>(PhantomData)
+    }
+}
+impl<T2, A0, A1, A2: A<2, T2>, A3> ExtractField<F<2, T2>, T2> for Params<(A0, A1, A2, A3)> {
+    fn extract_field(&self, _: &Field<T2>) -> F<2, T2> {
+        F::<2, T2>(PhantomData)
+    }
+}
 impl<T3, A0, A1, A2, A3: A<3, T3>> ExtractField<F<3, T3>, T3> for Params<(A0, A1, A2, A3)> {
     fn extract_field(&self, _: &Field<T3>) -> F<3, T3> {
         F::<3, T3>(PhantomData)
@@ -481,47 +554,173 @@ impl<T3, A0, A1, A2> std::ops::Add<D<3, T3>> for Params<(A0, A1, A2, U<3, T3>)> 
         Params((p0, p1, p2, rhs))
     }
 }
-impl<T0: ExtractValue> ExtractValues for Params<(T0,)> {
-    type Values = (T0::Value,);
-    fn extract_values(self) -> Self::Values {
-        let (p0,) = self.0;
-        (
-            p0.extract_value(),
-        )
+impl<T> ExtractValues<()> for Params<T> {
+    type Output = Self;
+    fn extract_values(self) -> ((), Self::Output) {
+        ((), self)
     }
 }
 
-impl<T0: ExtractValue, T1: ExtractValue> ExtractValues for Params<(T0, T1)> {
-    type Values = (T0::Value, T1::Value);
-    fn extract_values(self) -> Self::Values {
-        let (p0, p1) = self.0;
-        (
+impl<T0: ExtractValue<Value = P0>, P0> ExtractValues<(P0,)> for Params<(T0,)> {
+    type Output = Params<()>;
+    fn extract_values(self) -> ((P0,), Self::Output) {
+        let (p0,) = self.0;
+        ((
             p0.extract_value(),
-            p1.extract_value(),
-        )
+        ), Params(()))
     }
 }
-impl<T0: ExtractValue, T1: ExtractValue, T2: ExtractValue> ExtractValues for Params<(T0, T1, T2)> {
-    type Values = (T0::Value, T1::Value, T2::Value);
-    fn extract_values(self) -> Self::Values {
+
+impl ExtractValues<()> for () {
+    type Output = Params<()>;
+    fn extract_values(self) -> ((), Self::Output) {
+        ((), Params(()))
+    }
+}
+
+impl<T0, T1, P0> ExtractValues<(P0,)> for Params<(T0, T1)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: MoveTo<0>,
+
+{
+    type Output = Params<(T1::Target,)>;
+    fn extract_values(self) -> ((P0,), Self::Output) {
+        let (p0, p1) = self.0;
+        ((
+            p0.extract_value(),
+        ), Params((p1.move_to(),)))
+    }
+}
+impl<T0, T1, T2, P0> ExtractValues<(P0,)> for Params<(T0, T1, T2)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: MoveTo<0>,
+    T2: MoveTo<1>,
+
+{
+    type Output = Params<(T1::Target, T2::Target)>;
+    fn extract_values(self) -> ((P0,), Self::Output) {
         let (p0, p1, p2) = self.0;
-        (
+        ((
+            p0.extract_value(),
+        ), Params((
+            p1.move_to(),
+            p2.move_to(),
+        )))
+    }
+}
+impl<T0, T1, T2, T3, P0> ExtractValues<(P0,)> for Params<(T0, T1, T2, T3)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: MoveTo<0>,
+    T2: MoveTo<1>,
+    T3: MoveTo<2>,
+
+{
+    type Output = Params<(T1::Target, T2::Target, T3::Target)>;
+    fn extract_values(self) -> ((P0,), Self::Output) {
+        let (p0, p1, p2, p3) = self.0;
+        ((
+            p0.extract_value(),
+        ), Params((
+            p1.move_to(),
+            p2.move_to(),
+            p3.move_to(),
+        )))
+    }
+}
+
+impl<P0, P1, T0: ExtractValue<Value = P0>, T1: ExtractValue<Value = P1>> ExtractValues<(P0, P1)> for Params<(T0, T1)> {
+    type Output = Params<()>;
+    fn extract_values(self) -> ((P0, P1), Self::Output) {
+        let (p0, p1) = self.0;
+        ((
+            p0.extract_value(),
+            p1.extract_value(),
+        ), Params(()))
+    }
+}
+impl<P0, P1, T0, T1, T2> ExtractValues<(P0, P1)> for Params<(T0, T1, T2)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: ExtractValue<Value = P1>,
+    T2: MoveTo<0>,
+{
+    type Output = Params<(T2::Target,)>;
+    fn extract_values(self) -> ((P0, P1), Self::Output) {
+        let (p0, p1, p2) = self.0;
+        ((
+            p0.extract_value(),
+            p1.extract_value(),
+        ), Params((p2.move_to(),)))
+    }
+}
+impl<P0, P1, T0, T1, T2, T3> ExtractValues<(P0, P1)> for Params<(T0, T1, T2, T3)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: ExtractValue<Value = P1>,
+    T2: MoveTo<0>,
+    T3: MoveTo<1>,
+{
+    type Output = Params<(T2::Target, T3::Target)>;
+    fn extract_values(self) -> ((P0, P1), Self::Output) {
+        let (p0, p1, p2, p3) = self.0;
+        ((
+            p0.extract_value(),
+            p1.extract_value(),
+        ), Params((
+            p2.move_to(),
+            p3.move_to(),
+        )))
+    }
+}
+impl<P0, P1, P2, T0: ExtractValue<Value = P0>, T1: ExtractValue<Value = P1>, T2: ExtractValue<Value = P2>> ExtractValues<(P0, P1, P2)> for Params<(T0, T1, T2)> {
+    type Output = Params<()>;
+    fn extract_values(self) -> ((P0, P1, P2), Self::Output) {
+        let (p0, p1, p2) = self.0;
+        ((
             p0.extract_value(),
             p1.extract_value(),
             p2.extract_value(),
-        )
+        ), Params(()))
     }
 }
-impl<T0: ExtractValue, T1: ExtractValue, T2: ExtractValue, T3: ExtractValue> ExtractValues for Params<(T0, T1, T2, T3)> {
-    type Values = (T0::Value, T1::Value, T2::Value, T3::Value);
-    fn extract_values(self) -> Self::Values {
+impl<P0, P1, P2, T0, T1, T2, T3> ExtractValues<(P0, P1, P2)> for Params<(T0, T1, T2, T3)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: ExtractValue<Value = P1>,
+    T2: ExtractValue<Value = P2>,
+    T3: MoveTo<0>,
+{
+    type Output = Params<(T3::Target,)>;
+    fn extract_values(self) -> ((P0, P1, P2), Self::Output) {
         let (p0, p1, p2, p3) = self.0;
-        (
+        ((
+            p0.extract_value(),
+            p1.extract_value(),
+            p2.extract_value(),
+        ), Params((
+            p3.move_to(),
+        )))
+    }
+}
+impl<P0, P1, P2, P3, T0, T1, T2, T3> ExtractValues<(P0, P1, P2, P3)> for Params<(T0, T1, T2, T3)>
+where
+    T0: ExtractValue<Value = P0>,
+    T1: ExtractValue<Value = P1>,
+    T2: ExtractValue<Value = P2>,
+    T3: ExtractValue<Value = P3>,
+{
+    type Output = Params<()>;
+    fn extract_values(self) -> ((P0, P1, P2, P3), Self::Output) {
+        let (p0, p1, p2, p3) = self.0;
+        ((
             p0.extract_value(),
             p1.extract_value(),
             p2.extract_value(),
             p3.extract_value(),
-        )
+        ), Params(()))
     }
 }
 
@@ -571,48 +770,48 @@ impl<T0, T1, T2> SplitAt<3> for Params<(T0, T1, T2)> {
 
 pub trait IntoParams {
     type Target;
-    fn into_params() -> Params<Self::Target>;
+    fn into_params() -> Self::Target;
 }
 impl IntoParams for () {
-    type Target = ();
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<()>;
+    fn into_params() -> Self::Target {
         Params(())
     }
 }
 impl<T0: IntoField> IntoParams for (T0,) {
-    type Target = (U<0, T0>,);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>,)>;
+    fn into_params() -> Self::Target {
         Params((U::<0, _>(PhantomData),))
     }
 }
 impl<T0: IntoField> IntoParams for (T0,()) {
-    type Target = (U<0, T0>,);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>,)>;
+    fn into_params() -> Self::Target {
         Params((U::<0, _>(PhantomData),))
     }
 }
 impl<T0: IntoField, T1: IntoField> IntoParams for (T0, T1) {
-    type Target = (U<0, T0>, U<1, T1>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>)>;
+    fn into_params() -> Self::Target {
         Params((U::<0, _>(PhantomData), U::<1, _>(PhantomData)))
     }
 }
 impl<T0: IntoField, T1: IntoField> IntoParams for (T0, T1, ()) {
-    type Target = (U<0, T0>, U<1, T1>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>)>;
+    fn into_params() -> Self::Target {
         Params((U::<0, _>(PhantomData), U::<1, _>(PhantomData)))
     }
 }
 impl<T0: IntoField, T1: IntoField> IntoParams for (T0, (T1, ())) {
-    type Target = (U<0, T0>, U<1, T1>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>)>;
+    fn into_params() -> Self::Target {
         Params((U::<0, _>(PhantomData), U::<1, _>(PhantomData)))
     }
 }
 
 impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -621,8 +820,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2) {
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2, ()) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -632,8 +831,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, T2, ()
 }
 
 impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, (T2, ())) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -643,8 +842,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, T1, (T2, (
 }
 
 impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, (T1, T2, ())) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -654,8 +853,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField> IntoParams for (T0, (T1, T2, (
 }
 
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, T3) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -665,8 +864,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, T3, ()) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -676,8 +875,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, T2, (T3, ())) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -687,8 +886,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, T3, ())) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -698,8 +897,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, T3, ())) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -709,8 +908,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, T1, (T2, (T3, ()))) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -720,8 +919,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, T2, (T3, ()))) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
@@ -731,8 +930,8 @@ impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for 
     }
 }
 impl<T0: IntoField, T1: IntoField, T2: IntoField, T3: IntoField> IntoParams for (T0, (T1, (T2, (T3, ())))) {
-    type Target = (U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>);
-    fn into_params() -> Params<Self::Target> {
+    type Target = Params<(U<0, T0>, U<1, T1>, U<2, T2>, U<3, T3>)>;
+    fn into_params() -> Self::Target {
         Params((
             U::<0, _>(PhantomData),
             U::<1, _>(PhantomData),
