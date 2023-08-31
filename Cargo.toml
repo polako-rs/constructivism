@@ -9,13 +9,6 @@ edition = "2021"
 members = [
     "crates/constructivist_core",
     "crates/constructivist_macro_support",
-    # "crates/belly_cli",
-    # "crates/belly_core",
-    # "crates/belly_macro",
-    # "crates/belly_widgets",
-    # "crates/bevy_stylebox",
-    # "crates/tagstr",
-    # "crates/bevy_mod_props",
 ]
 
 [dependencies]
