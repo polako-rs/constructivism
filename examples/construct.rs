@@ -1,6 +1,0 @@
-// use constructivist::*;
-
-fn main() {
-
-}
-

@@ -38,17 +38,17 @@ pub trait Construct {
 macro_rules! construct {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
-            use crate::traits::*;
-            let fields = <$t as crate::Construct>::construct_fields();
-            let props = <<$t as crate::Construct>::Props as crate::AsProps>::as_props();
+            use $crate::traits::*;
+            let fields = <$t as $crate::Construct>::construct_fields();
+            let props = <<$t as $crate::Construct>::Props as $crate::AsProps>::as_props();
             $(
                 let param = fields.$f();
                 let field = param.field();
                 let param = props.field(&field).define($e.into());
                 let props = props + param;
             )+
-            let (props, _rest) = <crate::Props<_> as crate::DefinedValues<<$t as crate::Construct>::Props>>::extract_values(props);
-            <$t as crate::Construct>::construct(props)
+            let (props, _rest) = <$crate::Props<_> as $crate::DefinedValues<<$t as $crate::Construct>::Props>>::extract_values(props);
+            <$t as $crate::Construct>::construct(props)
         }
         
     };
@@ -57,9 +57,9 @@ macro_rules! construct {
 macro_rules! constructall {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
-            use crate::traits::*;
-            let fields = <$t as crate::Construct>::construct_fields();
-            let props = <<$t as crate::Construct>::WrappedProps as crate::AsProps>::as_props();
+            use $crate::traits::*;
+            let fields = <$t as $crate::Construct>::construct_fields();
+            let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
             $(
                 let param = fields.$f();
                 let field = param.field();
@@ -67,9 +67,63 @@ macro_rules! constructall {
                 let props = props + param;
             )+
             let defined_props = props.defined();
-            <$t as crate::Construct>::construct_all(defined_props).flattern()
+            <$t as $crate::Construct>::construct_all(defined_props).flattern()
         }
         
+    };
+}
+
+#[macro_export]
+macro_rules! new {
+    (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($e.into());
+        let $props = $props + value;
+    };
+    (@fields $fields:ident $props:ident $f:ident) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($f.into());
+        let $props = $props + value;
+        new!(@fields $fields $props $($rest)*)
+    };
+    (@fields $fields:ident $props:ident $f:ident: $e:expr,) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($e.into());
+        let $props = $props + value;
+    };
+    (@fields $fields:ident $props:ident $f:ident,) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($f.into());
+        $props = $props + value;
+        new!(@fields $fields $props $($rest)*)
+    };
+    (@fields $fields:ident $props:ident $f:ident: $e:expr, $($rest:tt)*) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($e.into());
+        let $props = $props + value;
+        new!(@fields $fields $props $($rest)*)
+    };
+    (@fields $fields:ident $props:ident $f:ident, $($rest:tt)*) => {
+        let prop = $fields.$f();
+        let field = prop.field();
+        let value = $props.field(&field).define($f.into());
+        let $props = $props + value;
+        new!(@fields $fields $props $($rest)*)
+    };
+    ($t:ty { $($rest:tt)* } ) => {
+        {
+            use $crate::traits::*;
+            let fields = <$t as $crate::Construct>::construct_fields();
+            let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
+            new!(@fields fields props $($rest)*);
+            let defined_props = props.defined();
+            <$t as $crate::Construct>::construct_all(defined_props).flattern()
+        }
     };
 }
 
