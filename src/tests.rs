@@ -12,8 +12,8 @@ pub struct Animal {
 #[derive(Construct)]
 #[wraps(Animal)]
 pub struct Duck {
-    #[default(1.0)]
-    quack_volume: f32,
+    #[default(1)]
+    volume: u8,
 }
 
 pub struct Entity(usize);
@@ -33,10 +33,10 @@ pub struct Follow {
 fn test_construct() {
     let (duck, animal) = constructall!(Duck {
         name: "bob",
-        quack_volume: 22.,
+        volume: 22,
     });
     assert_eq!(animal.name, "bob".to_string());
-    assert_eq!(duck.quack_volume, 22.);
+    assert_eq!(duck.volume, 22);
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn test_required() {
     assert_eq!(follow.target.0, 20);
     assert_eq!(follow.offset.x, 0.);
     assert_eq!(follow.offset.y, 0.);
-    assert_eq!(duck.quack_volume, 1.0);
+    assert_eq!(duck.volume, 1);
     assert_eq!(animal.name, "Bill".to_string());
 
     let follow = construct!(Follow {
