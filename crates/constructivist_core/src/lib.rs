@@ -14,6 +14,7 @@ pub mod traits {
     pub use super::Flattern;
     pub use super::NonUnit;
     pub use super::AsProps;
+    pub use super::Strip;
 }
 
 pub trait Construct {
@@ -42,7 +43,7 @@ macro_rules! construct {
             let fields = <$t as $crate::Construct>::construct_fields();
             let props = <<$t as $crate::Construct>::Props as $crate::AsProps>::as_props();
             $(
-                let param = fields.$f();
+                let param = &fields.$f;
                 let field = param.field();
                 let param = props.field(&field).define($e.into());
                 let props = props + param;
@@ -61,7 +62,7 @@ macro_rules! constructall {
             let fields = <$t as $crate::Construct>::construct_fields();
             let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
             $(
-                let param = fields.$f();
+                let param = &fields.$f;
                 let field = param.field();
                 let param = props.field(&field).define($e.into());
                 let props = props + param;
@@ -75,54 +76,43 @@ macro_rules! constructall {
 
 #[macro_export]
 macro_rules! new {
-    (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
-        let prop = $fields.$f();
+    (@field $fields:ident $props:ident $f:ident $e:expr) => {
+        let prop = &$fields.$f;
         let field = prop.field();
         let value = $props.field(&field).define($e.into());
         let $props = $props + value;
     };
+    (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
+        new!(@field $fields $props $f $e)
+    };
     (@fields $fields:ident $props:ident $f:ident) => {
-        let prop = $fields.$f();
-        let field = prop.field();
-        let value = $props.field(&field).define($f.into());
-        let $props = $props + value;
+        new!(@field $fields $props $f $f);
         new!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr,) => {
-        let prop = $fields.$f();
-        let field = prop.field();
-        let value = $props.field(&field).define($e.into());
-        let $props = $props + value;
+        new!(@field $fields $props $f $e);
     };
     (@fields $fields:ident $props:ident $f:ident,) => {
-        let prop = $fields.$f();
-        let field = prop.field();
-        let value = $props.field(&field).define($f.into());
-        $props = $props + value;
+        new!(@field $fields $props $f $f);
         new!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr, $($rest:tt)*) => {
-        let prop = $fields.$f();
-        let field = prop.field();
-        let value = $props.field(&field).define($e.into());
-        let $props = $props + value;
+        new!(@field $fields $props $f $e);
         new!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident, $($rest:tt)*) => {
-        let prop = $fields.$f();
-        let field = prop.field();
-        let value = $props.field(&field).define($f.into());
-        let $props = $props + value;
+        new!(@field $fields $props $f $f);
         new!(@fields $fields $props $($rest)*)
     };
     ($t:ty { $($rest:tt)* } ) => {
         {
             use $crate::traits::*;
+            type Fields = <$t as $crate::Construct>::Fields;
             let fields = <$t as $crate::Construct>::construct_fields();
             let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
-            <$t as $crate::Construct>::construct_all(defined_props).flattern()
+            <$t as $crate::Construct>::construct_all(defined_props)
         }
     };
 }
@@ -149,8 +139,8 @@ impl Construct for () {
 }
 
 pub struct Props<T>(T);
-pub struct Param<T, V>(PhantomData<(T, V)>);
-impl<T, V> Param<T, V> {
+pub struct Prop<T, V>(pub PhantomData<(T, V)>);
+impl<T, V> Prop<T, V> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -214,36 +204,9 @@ pub trait Flattern {
     fn flattern(self) -> Self::Output;
 }
 
-impl<T0: NonUnit> Flattern for (T0, ()) {
-    type Output = T0;
-    fn flattern(self) -> Self::Output {
-        let (p0, _) = self;
-        p0
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit> Flattern for (T0, (T1, ())) {
-    type Output = (T0, T1);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, _)) = self;
-        (p0, p1)
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit, T2: NonUnit> Flattern for (T0, (T1, (T2, ()))) {
-    type Output = (T0, T1, T2);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, (p2, _))) = self;
-        (p0, p1, p2)
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit, T2: NonUnit, T3: NonUnit> Flattern for (T0, (T1, (T2, (T3, ())))) {
-    type Output = (T0, T1, T2, T3);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, (p2, (p3, _)))) = self;
-        (p0, p1, p2, p3)
-    }
+pub trait Strip {
+    type Output;
+    fn strip(self) -> Self::Output;
 }
 
 impl<const I: u8, T> F<I, T> {
@@ -355,3 +318,73 @@ impl <T: AsField> AsFlatProps for T {
 }
 
 construct_implementations! { }
+
+impl<T: NonUnit> Strip for (T, ()) {
+    type Output = T;
+    fn strip(self) -> Self::Output {
+        self.0
+    }
+}
+
+impl<T: NonUnit, S:Strip> Strip for (T, S) {
+    type Output = (T, S::Output);
+    fn strip(self) -> Self::Output {
+        (self.0, (self.1.strip()))
+    }
+}
+
+struct X;
+struct Y;
+struct Z;
+impl NonUnit for X { }
+impl NonUnit for Y { }
+impl NonUnit for Z { }
+
+fn test() {
+    let s1 = (X, ());
+    let r1 = s1.strip();
+
+    let s2 = (X, (Y, ()));
+    let r2 = s2.strip();
+
+    let s3 = (X, (Y, (Z, ())));
+    let r3 = s3.strip();
+    let (x, (y, z)) = r3;
+
+    let s4 = (X, (Y, (Z, (X, ()))));
+    let r4 = s4.strip();
+}
+
+
+
+impl<T0: NonUnit> Flattern for (T0, ()) {
+    type Output = T0;
+    fn flattern(self) -> Self::Output {
+        let (p0, _) = self;
+        p0
+    }
+}
+
+impl <T0: NonUnit, T1: NonUnit> Flattern for (T0, (T1, ())) {
+    type Output = (T0, T1);
+    fn flattern(self) -> Self::Output {
+        let (p0, (p1, _)) = self;
+        (p0, p1)
+    }
+}
+
+impl <T0: NonUnit, T1: NonUnit, T2: NonUnit> Flattern for (T0, (T1, (T2, ()))) {
+    type Output = (T0, T1, T2);
+    fn flattern(self) -> Self::Output {
+        let (p0, (p1, (p2, _))) = self;
+        (p0, p1, p2)
+    }
+}
+
+impl <T0: NonUnit, T1: NonUnit, T2: NonUnit, T3: NonUnit> Flattern for (T0, (T1, (T2, (T3, ())))) {
+    type Output = (T0, T1, T2, T3);
+    fn flattern(self) -> Self::Output {
+        let (p0, (p1, (p2, (p3, _)))) = self;
+        (p0, p1, p2, p3)
+    }
+}

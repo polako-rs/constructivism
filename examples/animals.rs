@@ -25,10 +25,53 @@ impl Fields {
         &Fields {
             name: Field(PhantomData),
             age: Field(PhantomData),
-
         }
     }
 }
+
+pub struct Content<T>(T);
+pub trait IntoContent<T> {
+    fn into_content(self) -> Content<T>;
+}
+
+#[derive(Construct)]
+pub struct Div {
+
+}
+
+impl IntoContent<Entity> for Div {
+    fn into_content(self) -> Content<Entity> {
+        Content(Entity(23))
+    }
+}
+
+impl IntoContent<Entity> for (Div, ()) {
+    fn into_content(self) -> Content<Entity> {
+        Content(Entity(23))
+    }
+}
+
+impl<T, C: IntoContent<Entity>> IntoContent<Entity> for (T, C) {
+    fn into_content(self) -> Content<Entity> {
+        self.1.into_content()
+    }
+}
+
+
+#[derive(Construct)]
+#[wraps(Div)]
+pub struct Slider {
+
+}
+
+fn t() {
+    let obj = (Slider { }, (Div { }, ()));
+    let e = obj.into_content();
+}
+
+
+
+
 
 
 #[derive(Construct)]
@@ -58,11 +101,11 @@ pub struct Follow {
 }
 
 
+
 fn main() {
-    let x = new!(Follow {
+    let (follow, base) = new!(Follow {
         name: "bob",
-        target: Entity(20),
-        
+        target: Entity(20),        
     });
 
     let (duck, animal) = constructall!(Duck {
