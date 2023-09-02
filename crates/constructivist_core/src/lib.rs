@@ -15,6 +15,7 @@ pub mod traits {
     pub use super::NonUnit;
     pub use super::AsProps;
     pub use super::Strip;
+    pub use super::New;
 }
 
 pub trait Construct {
@@ -45,7 +46,7 @@ macro_rules! construct {
             $(
                 let param = &fields.$f;
                 let field = param.field();
-                let param = props.field(&field).define($e.into());
+                let param = props.field(&field).define(param.value($e.into()));
                 let props = props + param;
             )+
             let (props, _rest) = <$crate::Props<_> as $crate::DefinedValues<<$t as $crate::Construct>::Props>>::extract_values(props);
@@ -64,7 +65,7 @@ macro_rules! constructall {
             $(
                 let param = &fields.$f;
                 let field = param.field();
-                let param = props.field(&field).define($e.into());
+                let param = props.field(&field).define(param.value($e.into()));
                 let props = props + param;
             )+
             let defined_props = props.defined();
@@ -79,7 +80,7 @@ macro_rules! new {
     (@field $fields:ident $props:ident $f:ident $e:expr) => {
         let prop = &$fields.$f;
         let field = prop.field();
-        let value = $props.field(&field).define($e.into());
+        let value = $props.field(&field).define(prop.value($e.into()));
         let $props = $props + value;
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
@@ -139,22 +140,34 @@ impl Construct for () {
 }
 
 pub struct Props<T>(T);
-pub struct Prop<T, V>(pub PhantomData<(T, V)>);
-impl<T, V> Prop<T, V> {
+
+
+pub trait New<T> {
+    fn new(from: T) -> Self;
+}
+pub struct Prop<N, T>(pub PhantomData<(N, T)>);
+impl<N, T> Prop<N, T> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
-    pub fn field(&self) -> Field<T> {
+    pub fn field(&self) -> Field<N> {
         Field(PhantomData)
     }
+}
+
+impl<N: New<T>, T> Prop<N,T> {
+    pub fn value(&self, value: T) -> N {
+        N::new(value)
+    }
+
 } 
+
+
+
 pub struct Field<T>(PhantomData<T>);
 impl<T> Field<T> {
     pub fn new() -> Self {
         Self(PhantomData)
-    }
-    pub fn value<V: Into<T>>(&self, value: V) -> T {
-        value.into()
     }
 }
 
@@ -331,28 +344,6 @@ impl<T: NonUnit, S:Strip> Strip for (T, S) {
     fn strip(self) -> Self::Output {
         (self.0, (self.1.strip()))
     }
-}
-
-struct X;
-struct Y;
-struct Z;
-impl NonUnit for X { }
-impl NonUnit for Y { }
-impl NonUnit for Z { }
-
-fn test() {
-    let s1 = (X, ());
-    let r1 = s1.strip();
-
-    let s2 = (X, (Y, ()));
-    let r2 = s2.strip();
-
-    let s3 = (X, (Y, (Z, ())));
-    let r3 = s3.strip();
-    let (x, (y, z)) = r3;
-
-    let s4 = (X, (Y, (Z, (X, ()))));
-    let r4 = s4.strip();
 }
 
 

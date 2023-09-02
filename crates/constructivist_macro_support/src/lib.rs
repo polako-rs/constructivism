@@ -1,4 +1,4 @@
-use syn::{parse_macro_input, DeriveInput, Data, Type, Expr, parse::{Parse, Parser}, bracketed, punctuated::Punctuated, Token, Ident, parenthesized};
+use syn::{parse_macro_input, DeriveInput, Data, Type, Expr, parse::Parse, bracketed, Token, Ident, parenthesized, spanned::Spanned};
 use quote::*;
 use proc_macro;
 use proc_macro2::TokenStream;
@@ -34,125 +34,11 @@ fn lib() -> TokenStream {
 #[proc_macro_derive(Construct, attributes(wraps, required, default))]
 pub fn derive_construct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    proc_macro::TokenStream::from(derive_construct_impl(input, lib()))
-}
-
-fn derive_construct_impl(input: DeriveInput, lib: TokenStream) -> TokenStream {
-    if input.generics.params.len() > 0 {
-        return quote!(compile_error!("#[derive(Construct)] doesn't support generics yet."))
-    }
-    let type_ident = &input.ident;                      // Slider
-    let mod_ident = format_ident!(                      // slider_construct
-        "{}_construct",
-        type_ident.to_string().to_lowercase()
-    );
-    let wraps: Type = if let Some(wraps) = input.attrs.iter().find(|a| a.path().is_ident("wraps")) {
-        wraps.parse_args().expect("Expected type path.")
-    } else {
-        syn::parse2(quote!(())).unwrap()
+    let constructable = match Constructable::from_derive(input) {
+        Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
+        Ok(c) => c
     };
-
-    let Data::Struct(input) = input.data else {
-        return quote!(compile_error!("#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases."))
-    };
-    let mut type_props = quote! { };                   // slider_construct::min, slider_construct::max, slider_construct::val,
-    let mut type_props_deconstruct = quote! { };       // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
-    let mut param_values = quote! { };                  // min, max, val,
-    let mut impls = quote! { };
-    let mut fields = quote! { };
-    let mut fields_new = quote! { };
-
-    for field in input.fields.iter() {
-        let Some(ident) = &field.ident else {
-            return quote!(compile_error!("#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases."))
-        };
-        let field_ty = &field.ty;
-        type_props = quote! { #type_props #mod_ident::#ident, };
-        type_props_deconstruct = quote! { #type_props_deconstruct #mod_ident::#ident(#ident), };
-        param_values = quote! { #param_values #ident, };
-        fields = quote! { #fields
-            #[allow(unused_variables)]
-            pub #ident: #lib::Prop<#ident, #field_ty>,
-        };
-        fields_new = quote! { #fields_new #ident: #lib::Prop(::std::marker::PhantomData), };
-
-        let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
-            quote! { }
-        } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default")) {
-            let Ok(expr) = default.parse_args::<Expr>() else {
-                return quote!(compile_error!("Invalid expression for #[default(expr)]."))
-            };
-            quote! {
-                impl Default for #ident {
-                    fn default() -> Self {
-                        #ident(#expr)
-                    }
-                }
-            }
-        } else {
-            quote! { #[derive(Default)] }
-        };
-        impls = quote! { #impls 
-            #default
-            #[allow(non_camel_case_types)]
-            pub struct #ident(pub #field_ty);
-            impl<T: Into<#field_ty>> From<T> for #ident {
-                fn from(__value__: T) -> Self {
-                    #ident(__value__.into())
-                }
-            }
-            impl #lib::AsField for #ident {
-                fn as_field() -> #lib::Field<Self> {
-                    #lib::Field::new()
-                }
-            }
-        }
-    }
-    quote! {
-        mod #mod_ident {
-            use super::*;
-            pub struct Fields {
-                #fields
-            }
-            impl #lib::Singleton for Fields {
-                fn instance() -> &'static Self {
-                    &Fields {
-                        #fields_new
-                    }
-                }
-            }
-            impl std::ops::Deref for Fields {
-                type Target = <<super::#type_ident as #lib::Construct>::Wraps as #lib::Construct>::Fields;
-                fn deref(&self) -> &Self::Target {
-                    <<<super::#type_ident as #lib::Construct>::Wraps as #lib::Construct>::Fields as #lib::Singleton>::instance()
-                }
-            }
-            #impls
-        }
-        impl #lib::NonUnit for #type_ident { }
-        impl #lib::Construct for #type_ident {
-            type Fields = #mod_ident::Fields;
-            type Props = ( #type_props );
-            type Wraps = #wraps;
-            type Wrapped = (Self, <Self::Wraps as #lib::Construct>::Wrapped);
-            type WrappedProps = (#type_props <Self::Wraps as #lib::Construct>::WrappedProps);
-            fn construct_fields() -> &'static Self::Fields {
-                <#mod_ident::Fields as #lib::Singleton>::instance()
-            }
-            fn construct(props: Self::Props) -> Self {
-                let (#type_props_deconstruct) = props;
-                Self { #param_values }
-            }
-            fn construct_all<P>(props: P) -> <Self as #lib::Construct>::Wrapped
-            where Self: Sized, P: #lib::DefinedValues<
-                Self::Props,
-                Output = <<<Self as #lib::Construct>::Wraps as #lib::Construct>::WrappedProps as #lib::AsProps>::Defined 
-            > {
-                let ((args), props) = props.extract_values();
-                (Self::construct(args), <<Self as #lib::Construct>::Wraps as #lib::Construct>::construct_all(props))
-            }
-        }
-    }
+    proc_macro::TokenStream::from(constructable.build(lib()))
 }
 
 enum PropType {
@@ -171,10 +57,16 @@ impl Parse for PropType {
         }
     }
 }
+
+enum PropDefault {
+    None,
+    Default,
+    Custom(Expr)
+}
 struct Prop {
     name: Ident,
     ty: PropType,
-    default: Option<Expr>,
+    default: PropDefault,
 }
 
 impl Parse for Prop {
@@ -182,20 +74,26 @@ impl Parse for Prop {
         let name = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty = input.parse()?;
-        let mut default = None;
+        let mut default = PropDefault::None;
         if input.peek(Token![=]) {
-            input.parse::<Token![=]>();
-            default = Some(input.parse()?);
+            input.parse::<Token![=]>()?;
+            default = PropDefault::Custom(input.parse()?);
         }
         Ok(Prop { name, ty, default })
     }
+}
+
+macro_rules! throw {
+    ($loc:expr, $msg:literal) => {
+        return Err(syn::Error::new($loc.span(), $msg));
+    };
 }
 
 struct Constructable {
     ty: Type,
     extends: Option<Type>,
     props: Vec<Prop>,
-    body: Expr
+    body: Option<Expr>,
 }
 
 impl Parse for Constructable {
@@ -212,7 +110,7 @@ impl Parse for Constructable {
         parenthesized!(content in input);
         let props = content.parse_terminated(Prop::parse, Token![,])?;
         let props = props.into_iter().collect();
-        let body = input.parse()?;
+        let body = Some(input.parse()?);
         Ok(Constructable { ty, extends, props, body })
     }
 }
@@ -230,17 +128,16 @@ impl Constructable {
         let extends = self.extends.clone().unwrap_or(syn::parse2(quote!(())).unwrap());
         let mut type_props = quote! { };                   // slider_construct::min, slider_construct::max, slider_construct::val,
         let mut type_props_deconstruct = quote! { };       // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
-        let mut param_values = quote! { };                  // min, max, val,
+        let mut prop_values = quote! { };                  // min, max, val,
         let mut impls = quote! { };
         let mut fields = quote! { };
         let mut fields_new = quote! { };
-        let construct = &self.body;
-
         for prop in self.props.iter() {
             let PropType::Single(prop_ty) = &prop.ty else {
                 return quote!(compile_error!("Union props not supported yet."))
             };
             let ident = &prop.name;
+            prop_values = quote! { #prop_values #ident, };
             type_props = quote! { #type_props #mod_ident::#ident, };
             type_props_deconstruct = quote! { #type_props_deconstruct #mod_ident::#ident(mut #ident), };
             fields = quote! { #fields
@@ -248,16 +145,28 @@ impl Constructable {
                 pub #ident: #lib::Prop<#ident, #prop_ty>,
             };
             fields_new = quote! { #fields_new #ident: #lib::Prop(::std::marker::PhantomData), };
-            let default = if let Some(default) = &prop.default {
-                quote! { 
-                    impl Default for #ident {
-                        fn default() -> Self {
-                            #ident(#default)
+            let default = match &prop.default {
+                PropDefault::Custom(default) => {
+                    quote! { 
+                        impl Default for #ident {
+                            fn default() -> Self {
+                                #ident(#default)
+                            }
                         }
                     }
+                },
+                PropDefault::Default => {
+                    quote! { 
+                        impl Default for #ident {
+                            fn default() -> Self {
+                                #ident(Default::default())
+                            }
+                        }
+                    }
+                },
+                PropDefault::None => {
+                    quote! { }
                 }
-            } else {
-                quote! { }
             };
             impls = quote! { #impls 
                 #default
@@ -273,8 +182,20 @@ impl Constructable {
                         #lib::Field::new()
                     }
                 }
+                impl #lib::New<#prop_ty> for #ident {
+                    fn new(from: #prop_ty) -> #ident {
+                        #ident(from)
+                    }
+                }
             };
         }
+        let construct = if let Some(expr) = &self.body {
+            expr.clone()
+        } else {
+            syn::parse2(quote!{ 
+                Self { #prop_values }
+            }).unwrap()
+        };
         quote! {
             mod #mod_ident {
                 use super::*;
@@ -321,6 +242,47 @@ impl Constructable {
             }
         }
     }
+
+
+    pub fn from_derive(input: DeriveInput) -> Result<Self, syn::Error> {
+        if input.generics.params.len() > 0 {
+            throw!(input.ident, "#[derive(Construct)] doesn't support generics yet.");
+        }
+        let ident = input.ident.clone();                      // Slider
+        let ty = syn::parse2(quote!{ #ident }).unwrap();
+        let extends: Option<Type> = if let Some(wraps) = input.attrs.iter().find(|a| a.path().is_ident("wraps")) {
+            Some(wraps.parse_args().expect("Expected type path."))
+        } else {
+            None
+        };
+    
+        let Data::Struct(input) = input.data else {
+            throw!(input.ident, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
+        };
+        let mut props = vec![];
+        for field in input.fields.iter() {
+            let ty = PropType::Single(field.ty.clone());
+            let Some(name) = field.ident.clone() else {
+                throw!(field, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
+            };
+            let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
+                PropDefault::None
+            } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default")) {
+                let Ok(expr) = default.parse_args::<Expr>() else {
+                    throw!(name, "Invalid expression for #[default(expr)].");
+                };
+                PropDefault::Custom(expr)
+            } else {
+                PropDefault::Default
+            };
+            props.push(Prop { ty, name, default });
+        }
+        let body = None;
+        Ok(Constructable {
+            ty, extends, props, body
+        })
+        // throw!(input.fields, "Coming soon");
+    }
 }
 
 
@@ -332,7 +294,7 @@ pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
 #[proc_macro]
 pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let max_size = 8;
+    let max_size = 6;
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_props = impl_all_add_to_props(max_size);
     let defined_values = impl_all_defined_values(max_size);

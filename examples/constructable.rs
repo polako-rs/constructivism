@@ -1,14 +1,14 @@
-use std::marker::PhantomData;
-
 use constructivist_core::new;
 use constructivist_macro_support::{Construct, constructable};
 
+#[allow(dead_code)]
 #[derive(Construct)]
 pub struct Div {
     width: f32,
     height: f32
 }
 
+#[allow(dead_code)]
 pub struct Slider {
     min: f32,
     max: f32,
@@ -27,27 +27,12 @@ constructable! { Slider extends Div (
     Self { min, max, val }
 }}
 
-struct UnionPropsConflict<N, T>(PhantomData<(N, T)>);
-impl<N, T> UnionPropsConflict<N, T> {
-    fn validator(self) -> Self {
-        self
-    }
-}
-mod fields {
- pub struct abs;
- pub struct rel;
-
-}
 
 fn main() {
-    let name = UnionPropsConflict::<fields::abs, fields::rel>(PhantomData);
-    // name.validator()();
-    let x = new!(Slider {
+    let _ = new!(Slider {
         width: 23.,
         max: 10.,
         val: 5.,
         // val: 5.,
     });
-
-
 }
