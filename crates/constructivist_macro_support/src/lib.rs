@@ -406,11 +406,23 @@ fn impl_extract_field(idx: u8, size: u8) -> TokenStream {
 /// Generates single std::ops::Add implementation for Props of size `size`
 /// and prop at `idx` position. `impl_add_to_props(1, 4)` will generate this:
 /// ```ignore
+//       #gin                                              #pundef
 /// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Props<(A0, U<1, T1>, A2, A3)> {
+//                           #pout
 ///     type Output = Props<(A0, D<1, T1>, A2, A3)>;
 ///     fn add(self, rhs: D<1, T1>) -> Self::Output {
+//               #dcs
 ///         let (p0, _, p2, p3) = self.0;
+//                 #vls
 ///         Props((p0, rhs, p2, p3))
+///     }
+/// }
+//       #gin                                              #pdef
+/// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Props<(A0, D<1, T1>, A2, A3)> {
+//                           #pout
+///     type Output = PropConflict<T1>;
+///     fn add(self, _: D<1, T1>) -> Self::Output {
+///         PropConflict::new()
 ///     }
 /// }
 /// ```
@@ -419,13 +431,15 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
     let di = quote! { D<#idx, #ti> };
     let ui = quote! { U<#idx, #ti> };
     let mut gin = quote! { };
-    let mut pin = quote! { };
+    let mut pundef = quote! { };
+    let mut pdef = quote! { };
     let mut pout = quote! { };
     let mut dcs = quote! { };
     let mut vls = quote! { };
     for i in 0..size {
         if i == idx {
-            pin = quote! { #pin #ui, };
+            pundef = quote! { #pundef #ui, };
+            pdef = quote! { #pdef #di, };
             pout = quote! { #pout #di, };
             dcs = quote! { #dcs _, };
             vls = quote! { #vls rhs, };
@@ -433,18 +447,27 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
             let ai = format_ident!("A{i}");
             let pi = format_ident!("p{i}");
             gin = quote! { #gin #ai, };
-            pin = quote! { #pin #ai, };
+            pundef = quote! { #pundef #ai, };
+            pdef = quote! { #pdef #ai, };
+
             pout = quote! { #pout #ai, };
             dcs = quote! { #dcs #pi, };
             vls = quote! { #vls #pi, };
         }
     }
     quote! {
-        impl<#ti, #gin> std::ops::Add<#di> for Props<(#pin)> {
+        impl<#ti, #gin> std::ops::Add<#di> for Props<(#pundef)> {
             type Output = Props<(#pout)>;
             fn add(self, rhs: #di) -> Self::Output {
                 let (#dcs) = self.0;
                 Props((#vls))
+            }
+        }
+
+        impl<#ti, #gin> std::ops::Add<#di> for Props<(#pdef)> {
+            type Output = PropConflict<#ti>;
+            fn add(self, _: #di) -> Self::Output {
+                PropConflict::new()
             }
         }
     }

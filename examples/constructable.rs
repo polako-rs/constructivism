@@ -18,7 +18,7 @@ pub struct Slider {
 constructable! { Slider extends Div (
     min: f32 = 0.,
     max: f32 = 1.,
-    val: f32 = 0.
+    val: f32 = 0.,
 ){
     if max < min {
         max = min;
@@ -33,6 +33,7 @@ fn main() {
         width: 23.,
         max: 10.,
         val: 5.,
+        // uncomment next line to get 'expected function, found `PropRedefined<val>`'
         // val: 5.,
     });
 }

@@ -82,6 +82,7 @@ macro_rules! new {
         let field = prop.field();
         let value = $props.field(&field).define(prop.value($e.into()));
         let $props = $props + value;
+        $props.validate(&prop)();
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
         new!(@field $fields $props $f $e)
@@ -140,6 +141,23 @@ impl Construct for () {
 }
 
 pub struct Props<T>(T);
+impl<T> Props<T> {
+    pub fn validate<P>(&self, _: P) -> fn() -> () {
+        || { }
+    }
+}
+
+pub struct PropConflict<N>(PhantomData<N>);
+impl<N> PropConflict<N> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+    pub fn validate<T>(&self, _: &Prop<N, T>) -> PropRedefined<N> {
+        PropRedefined(PhantomData)
+    }
+}
+
+pub struct PropRedefined<N>(PhantomData<N>);
 
 
 pub trait New<T> {
