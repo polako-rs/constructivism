@@ -11,7 +11,7 @@ pub struct Animal {
 }
 
 #[derive(Construct)]
-#[wraps(Animal)]
+#[extends(Animal)]
 pub struct Duck {
     #[default(1)]
     volume: u8,
@@ -23,7 +23,7 @@ pub struct Entity(usize);
 pub struct Vec2 { pub x: f32, pub y: f32 }
 
 #[derive(Construct)]
-#[wraps(Duck)]
+#[extends(Duck)]
 pub struct Follow {
     #[required]
     target: Entity,

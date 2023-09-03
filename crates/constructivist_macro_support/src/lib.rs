@@ -31,7 +31,7 @@ fn lib() -> TokenStream {
 }
 
 
-#[proc_macro_derive(Construct, attributes(wraps, required, default))]
+#[proc_macro_derive(Construct, attributes(extends, required, default))]
 pub fn derive_construct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let constructable = match Constructable::from_derive(input) {
@@ -210,9 +210,9 @@ impl Constructable {
                     }
                 }
                 impl std::ops::Deref for Fields {
-                    type Target = <<super::#type_ident as #lib::Construct>::Wraps as #lib::Construct>::Fields;
+                    type Target = <<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Fields;
                     fn deref(&self) -> &Self::Target {
-                        <<<super::#type_ident as #lib::Construct>::Wraps as #lib::Construct>::Fields as #lib::Singleton>::instance()
+                        <<<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Fields as #lib::Singleton>::instance()
                     }
                 }
                 #impls
@@ -221,9 +221,9 @@ impl Constructable {
             impl #lib::Construct for #type_ident {
                 type Fields = #mod_ident::Fields;
                 type Props = ( #type_props );
-                type Wraps = #extends;
-                type Wrapped = (Self, <Self::Wraps as #lib::Construct>::Wrapped);
-                type WrappedProps = (#type_props <Self::Wraps as #lib::Construct>::WrappedProps);
+                type Extends = #extends;
+                type Hierarchy = (Self, <Self::Extends as #lib::Construct>::Hierarchy);
+                type ExpandedProps = (#type_props <Self::Extends as #lib::Construct>::ExpandedProps);
                 fn construct_fields() -> &'static Self::Fields {
                     <#mod_ident::Fields as #lib::Singleton>::instance()
                 }
@@ -231,13 +231,13 @@ impl Constructable {
                     let (#type_props_deconstruct) = props;
                     #construct
                 }
-                fn construct_all<P>(props: P) -> <Self as #lib::Construct>::Wrapped
+                fn construct_all<P>(props: P) -> <Self as #lib::Construct>::Hierarchy
                 where Self: Sized, P: #lib::DefinedValues<
                     Self::Props,
-                    Output = <<<Self as #lib::Construct>::Wraps as #lib::Construct>::WrappedProps as #lib::AsProps>::Defined 
+                    Output = <<<Self as #lib::Construct>::Extends as #lib::Construct>::ExpandedProps as #lib::AsProps>::Defined 
                 > {
                     let ((args), props) = props.extract_values();
-                    (Self::construct(args), <<Self as #lib::Construct>::Wraps as #lib::Construct>::construct_all(props))
+                    (Self::construct(args), <<Self as #lib::Construct>::Extends as #lib::Construct>::construct_all(props))
                 }
             }
         }
@@ -250,8 +250,8 @@ impl Constructable {
         }
         let ident = input.ident.clone();                      // Slider
         let ty = syn::parse2(quote!{ #ident }).unwrap();
-        let extends: Option<Type> = if let Some(wraps) = input.attrs.iter().find(|a| a.path().is_ident("wraps")) {
-            Some(wraps.parse_args().expect("Expected type path."))
+        let extends: Option<Type> = if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extends")) {
+            Some(extends.parse_args().expect("Expected type path."))
         } else {
             None
         };

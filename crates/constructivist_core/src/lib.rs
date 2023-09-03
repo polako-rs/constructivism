@@ -21,19 +21,19 @@ pub mod traits {
 pub trait Construct {
     type Fields: Singleton;
     type Props: AsProps;
-    type Wraps: Construct;
-    type Wrapped;
-    type WrappedProps: AsProps;
+    type Extends: Construct;
+    type Hierarchy;
+    type ExpandedProps: AsProps;
     fn construct_fields() -> &'static Self::Fields;
     // fn construct_props() -> Props<<<Self as Construct>::UndefinedProps as IntoProps>::Target>;
     fn construct(props: Self::Props)-> Self;
     // fn split_props<T: SplitAt<{I}>>(props: T) -> (T::Left, T::Right){
     //     T::split(props)
     // }
-    fn construct_all<P>(props: P) -> <Self as Construct>::Wrapped
+    fn construct_all<P>(props: P) -> <Self as Construct>::Hierarchy
     where 
         Self: Sized,
-        P: DefinedValues<Self::Props, Output = <<<Self as Construct>::Wraps as Construct>::WrappedProps as AsProps>::Defined >;
+        P: DefinedValues<Self::Props, Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined >;
 }
 
 #[macro_export]
@@ -61,7 +61,7 @@ macro_rules! constructall {
         {
             use $crate::traits::*;
             let fields = <$t as $crate::Construct>::construct_fields();
-            let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
+            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::AsProps>::as_props();
             $(
                 let param = &fields.$f;
                 let field = param.field();
@@ -111,7 +111,7 @@ macro_rules! new {
             use $crate::traits::*;
             type Fields = <$t as $crate::Construct>::Fields;
             let fields = <$t as $crate::Construct>::construct_fields();
-            let props = <<$t as $crate::Construct>::WrappedProps as $crate::AsProps>::as_props();
+            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::AsProps>::as_props();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
             <$t as $crate::Construct>::construct_all(defined_props)
@@ -122,19 +122,19 @@ macro_rules! new {
 impl Construct for () {
     type Fields = ();
     type Props = ();
-    type Wraps = ();
-    type Wrapped = ();
-    type WrappedProps = ();
+    type Extends = ();
+    type Hierarchy = ();
+    type ExpandedProps = ();
     fn construct_fields() -> &'static Self::Fields {
         &()
     }
     fn construct(_: Self::Props)-> Self {
         ()
     }
-    fn construct_all<P>(_: P) -> <Self as Construct>::Wrapped
+    fn construct_all<P>(_: P) -> <Self as Construct>::Hierarchy
     where Self: Sized, P: DefinedValues<
         Self::Props,
-        Output = <<<Self as Construct>::Wraps as Construct>::WrappedProps as AsProps>::Defined
+        Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined
     > {
         ()
     }
