@@ -202,6 +202,21 @@ impl Constructable {
                 pub struct Fields {
                     #fields
                 }
+
+                pub struct Methods;
+                impl #lib::Singleton for Methods {
+                    fn instance() -> &'static Self {
+                        &Methods
+                    }
+                }
+                impl #lib::Methods<#ty> for Methods { }
+                impl ::std::ops::Deref for Methods {
+                    type Target = <<#ty as #lib::Construct>::Extends as #lib::Construct>::Methods;
+                    fn deref(&self) -> &Self::Target {
+                        <<<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Methods as #lib::Singleton>::instance()
+                    }
+                }
+
                 impl #lib::Singleton for Fields {
                     fn instance() -> &'static Self {
                         &Fields {
@@ -209,10 +224,10 @@ impl Constructable {
                         }
                     }
                 }
-                impl std::ops::Deref for Fields {
-                    type Target = <<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Fields;
+                impl ::std::ops::Deref for Fields {
+                    type Target = <<#ty as #lib::Construct>::Extends as #lib::Construct>::Fields;
                     fn deref(&self) -> &Self::Target {
-                        <<<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Fields as #lib::Singleton>::instance()
+                        <<<#ty as #lib::Construct>::Extends as #lib::Construct>::Fields as #lib::Singleton>::instance()
                     }
                 }
                 #impls
@@ -220,6 +235,7 @@ impl Constructable {
             impl #lib::NonUnit for #type_ident { }
             impl #lib::Construct for #type_ident {
                 type Fields = #mod_ident::Fields;
+                type Methods = #mod_ident::Methods;
                 type Props = ( #type_props );
                 type Extends = #extends;
                 type Hierarchy = (Self, <Self::Extends as #lib::Construct>::Hierarchy);

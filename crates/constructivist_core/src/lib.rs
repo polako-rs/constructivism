@@ -20,6 +20,7 @@ pub mod traits {
 
 pub trait Construct {
     type Fields: Singleton;
+    type Methods: Singleton;
     type Props: AsProps;
     type Extends: Construct;
     type Hierarchy;
@@ -125,6 +126,7 @@ impl Construct for () {
     type Extends = ();
     type Hierarchy = ();
     type ExpandedProps = ();
+    type Methods = ();
     fn construct_fields() -> &'static Self::Fields {
         &()
     }
@@ -159,10 +161,6 @@ impl<N> PropConflict<N> {
 
 pub struct PropRedefined<N>(PhantomData<N>);
 
-
-pub trait New<T> {
-    fn new(from: T) -> Self;
-}
 pub struct Prop<N, T>(pub PhantomData<(N, T)>);
 impl<N, T> Prop<N, T> {
     pub fn new() -> Self {
@@ -173,12 +171,18 @@ impl<N, T> Prop<N, T> {
     }
 }
 
+pub trait New<T> {
+    fn new(from: T) -> Self;
+}
 impl<N: New<T>, T> Prop<N,T> {
     pub fn value(&self, value: T) -> N {
         N::new(value)
     }
-
 } 
+
+pub trait Methods<Protocol: ?Sized> {
+
+}
 
 
 
