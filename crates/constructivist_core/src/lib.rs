@@ -16,33 +16,56 @@ pub mod traits {
     pub use super::AsProps;
     pub use super::Strip;
     pub use super::New;
+    pub use super::Object;
 }
+
+// pub trait Cstr {
+//     type Fields: Singleton;
+//     type Methods: Singleton;
+//     type Props: AsProps;
+//     fn construct(props: Self::Props) -> Self;
+// }
+
 
 pub trait Construct {
     type Fields: Singleton;
     type Methods: Singleton;
     type Props: AsProps;
-    type Extends: Construct;
-    type Hierarchy;
-    type ExpandedProps: AsProps;
-    fn construct_fields() -> &'static Self::Fields;
+    // type Extends: Construct;
+    // type Hierarchy;
+    // type ExpandedProps: AsProps;
+    // fn construct_fields() -> &'static Self::Fields;
     // fn construct_props() -> Props<<<Self as Construct>::UndefinedProps as IntoProps>::Target>;
     fn construct(props: Self::Props)-> Self;
     // fn split_props<T: SplitAt<{I}>>(props: T) -> (T::Left, T::Right){
     //     T::split(props)
     // }
-    fn construct_all<P>(props: P) -> <Self as Construct>::Hierarchy
-    where 
-        Self: Sized,
-        P: DefinedValues<Self::Props, Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined >;
+    // fn construct_all<P>(props: P) -> <Self as Construct>::Hierarchy
+    // where 
+    //     Self: Sized,
+    //     P: DefinedValues<Self::Props, Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined >;
 }
 
+pub trait Object: Construct {
+    type Extends: Object;
+    // type Mixed;
+    // type MixedProps: AsProps;
+    type Hierarchy;
+    type ExpandedProps: AsProps;
+    // fn mixed(props: Self::MixedProps) -> Self::Mixed;
+    // fn build<P>(props: P) -> <Self as Object>::Hierarchy where 
+    //     Self: Sized,
+    //     P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
+    fn construct_all<P>(props: P) -> <Self as Object>::Hierarchy where 
+        Self: Sized,
+        P: DefinedValues<Self::Props, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
+}
 #[macro_export]
 macro_rules! construct {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
             use $crate::traits::*;
-            let fields = <$t as $crate::Construct>::construct_fields();
+            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
             let props = <<$t as $crate::Construct>::Props as $crate::AsProps>::as_props();
             $(
                 let param = &fields.$f;
@@ -61,8 +84,8 @@ macro_rules! constructall {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
             use $crate::traits::*;
-            let fields = <$t as $crate::Construct>::construct_fields();
-            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::AsProps>::as_props();
+            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+            let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
             $(
                 let param = &fields.$f;
                 let field = param.field();
@@ -70,7 +93,7 @@ macro_rules! constructall {
                 let props = props + param;
             )+
             let defined_props = props.defined();
-            <$t as $crate::Construct>::construct_all(defined_props).flattern()
+            <$t as $crate::Object>::construct_all(defined_props).flattern()
         }
         
     };
@@ -111,11 +134,11 @@ macro_rules! new {
         {
             use $crate::traits::*;
             type Fields = <$t as $crate::Construct>::Fields;
-            let fields = <$t as $crate::Construct>::construct_fields();
-            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::AsProps>::as_props();
+            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+            let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
-            <$t as $crate::Construct>::construct_all(defined_props)
+            <$t as $crate::Object>::construct_all(defined_props)
         }
     };
 }
@@ -123,23 +146,25 @@ macro_rules! new {
 impl Construct for () {
     type Fields = ();
     type Props = ();
-    type Extends = ();
-    type Hierarchy = ();
-    type ExpandedProps = ();
     type Methods = ();
-    fn construct_fields() -> &'static Self::Fields {
-        &()
-    }
+
     fn construct(_: Self::Props)-> Self {
         ()
     }
-    fn construct_all<P>(_: P) -> <Self as Construct>::Hierarchy
+}
+
+impl Object for () {
+    type Extends = ();
+    type Hierarchy = ();
+    type ExpandedProps = ();
+    fn construct_all<P>(_: P) -> <Self as Object>::Hierarchy
     where Self: Sized, P: DefinedValues<
         Self::Props,
-        Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined
+        Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined
     > {
         ()
     }
+
 }
 
 pub struct Props<T>(T);

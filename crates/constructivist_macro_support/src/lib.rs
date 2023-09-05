@@ -96,6 +96,11 @@ struct Constructable {
     body: Option<Expr>,
 }
 
+struct Object {
+    construct: Constructable,
+    extends: Option<Type>
+}
+
 impl Parse for Constructable {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let ty = input.parse()?;
@@ -211,9 +216,9 @@ impl Constructable {
                 }
                 impl #lib::Methods<#ty> for Methods { }
                 impl ::std::ops::Deref for Methods {
-                    type Target = <<#ty as #lib::Construct>::Extends as #lib::Construct>::Methods;
+                    type Target = <<#ty as #lib::Object>::Extends as #lib::Construct>::Methods;
                     fn deref(&self) -> &Self::Target {
-                        <<<super::#type_ident as #lib::Construct>::Extends as #lib::Construct>::Methods as #lib::Singleton>::instance()
+                        <<<super::#type_ident as #lib::Object>::Extends as #lib::Construct>::Methods as #lib::Singleton>::instance()
                     }
                 }
 
@@ -225,9 +230,9 @@ impl Constructable {
                     }
                 }
                 impl ::std::ops::Deref for Fields {
-                    type Target = <<#ty as #lib::Construct>::Extends as #lib::Construct>::Fields;
+                    type Target = <<#ty as #lib::Object>::Extends as #lib::Construct>::Fields;
                     fn deref(&self) -> &Self::Target {
-                        <<<#ty as #lib::Construct>::Extends as #lib::Construct>::Fields as #lib::Singleton>::instance()
+                        <<<#ty as #lib::Object>::Extends as #lib::Construct>::Fields as #lib::Singleton>::instance()
                     }
                 }
                 #impls
@@ -237,25 +242,41 @@ impl Constructable {
                 type Fields = #mod_ident::Fields;
                 type Methods = #mod_ident::Methods;
                 type Props = ( #type_props );
-                type Extends = #extends;
-                type Hierarchy = (Self, <Self::Extends as #lib::Construct>::Hierarchy);
-                type ExpandedProps = (#type_props <Self::Extends as #lib::Construct>::ExpandedProps);
-                fn construct_fields() -> &'static Self::Fields {
-                    <#mod_ident::Fields as #lib::Singleton>::instance()
-                }
                 fn construct(props: Self::Props) -> Self {
                     let (#type_props_deconstruct) = props;
                     #construct
                 }
-                fn construct_all<P>(props: P) -> <Self as #lib::Construct>::Hierarchy
+                // type Extends = #extends;
+                // type Hierarchy = (Self, <Self::Extends as #lib::Construct>::Hierarchy);
+                // type ExpandedProps = (#type_props <Self::Extends as #lib::Construct>::ExpandedProps);
+                
+                // fn construct_all<P>(props: P) -> <Self as #lib::Construct>::Hierarchy
+                // where Self: Sized, P: #lib::DefinedValues<
+                //     Self::Props,
+                //     Output = <<<Self as #lib::Construct>::Extends as #lib::Construct>::ExpandedProps as #lib::AsProps>::Defined 
+                // > {
+                //     let ((args), props) = props.extract_values();
+                //     (Self::construct(args), <<Self as #lib::Construct>::Extends as #lib::Construct>::construct_all(props))
+                // }
+            }
+            impl #lib::Object for #type_ident {
+                // type Fields = #mod_ident::Fields;
+                // type Methods = #mod_ident::Methods;
+                // type Props = ( #type_props );
+                type Extends = #extends;
+                type Hierarchy = (Self, <Self::Extends as #lib::Object>::Hierarchy);
+                type ExpandedProps = (#type_props <Self::Extends as #lib::Object>::ExpandedProps);
+                
+                fn construct_all<P>(props: P) -> <Self as #lib::Object>::Hierarchy
                 where Self: Sized, P: #lib::DefinedValues<
                     Self::Props,
-                    Output = <<<Self as #lib::Construct>::Extends as #lib::Construct>::ExpandedProps as #lib::AsProps>::Defined 
+                    Output = <<<Self as #lib::Object>::Extends as #lib::Object>::ExpandedProps as #lib::AsProps>::Defined 
                 > {
                     let ((args), props) = props.extract_values();
-                    (Self::construct(args), <<Self as #lib::Construct>::Extends as #lib::Construct>::construct_all(props))
+                    (<Self as #lib::Construct>::construct(args), <<Self as #lib::Object>::Extends as #lib::Object>::construct_all(props))
                 }
             }
+
         }
     }
 
