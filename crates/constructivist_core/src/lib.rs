@@ -210,7 +210,7 @@ impl<T> Field<T> {
 }
 
 pub struct D<const I: u8, T>(T);
-pub struct U<const I: u8, T>(PhantomData<T>);
+pub struct U<const I: u8, T>(pub PhantomData<T>);
 pub struct F<const I: u8, T>(PhantomData<T>);
 
 pub trait A<const I: u8, T> { }
@@ -354,19 +354,21 @@ impl AsProps for () {
     }
 }
 
+
 pub trait JoinProps<T> {
     type DefinedResult;
     type UndefinedResult;
     fn join() -> Self::UndefinedResult;
 }
 
-// impl<T: AsProps> JoinProps<()> for T {
-//     type DefinedResult = T::Defined;
-//     type UndefinedResult = T::Undefined;
-//     fn join() -> Self::UndefinedResult {
-//         T::as_props()
-//     }
-// }
+impl<T: AsFlatProps> JoinProps<T> for () {
+    type DefinedResult = T::Defined;
+    type UndefinedResult = T::Undefined;
+    fn join() -> Self::UndefinedResult {
+        T::as_flat_props()
+    }
+}
+
 
 // impl<T: AsProps> JoinProps<T> for () {
 //     type DefinedResult = T::Defined;
@@ -377,13 +379,15 @@ pub trait JoinProps<T> {
 // }
 
 
-pub struct Join<L, R>(PhantomData<(L, R)>);
+pub struct Join<L, R>(pub PhantomData<(L, R)>);
 
-impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> JoinProps<R::Undefined> for Join<L, R> {
-    type DefinedResult = R::DefinedResult;
-    type UndefinedResult = R::UndefinedResult;
+impl<L: AsFlatProps, R: AsFlatProps> JoinProps<R::Undefined> for Join<L, R> where
+<R as AsFlatProps>::Undefined: JoinProps<L::Undefined>
+{
+    type DefinedResult = <<R as AsFlatProps>::Undefined as JoinProps<L::Undefined>>::DefinedResult;
+    type UndefinedResult = <<R as AsFlatProps>::Undefined as JoinProps<L::Undefined>>::UndefinedResult;
     fn join() -> Self::UndefinedResult {
-        R::join()
+        <R as AsFlatProps>::Undefined::join()
     }
 }
 
@@ -395,13 +399,37 @@ impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> JoinProps<R::Unde
 //     }
 // }
 
-impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> AsFlatProps for Join<L, R> {
-    type Defined = <R as JoinProps<L::Undefined>>::DefinedResult;
-    type Undefined = <R as JoinProps<L::Undefined>>::UndefinedResult;
+// impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> AsProps for Join<L, R> {
+//     type Defined = Props<<R as JoinProps<L::Undefined>>::DefinedResult>;
+//     type Undefined = Props<<R as JoinProps<L::Undefined>>::UndefinedResult>;
+//     fn as_props() -> Self::Undefined {
+//         Props(Self::join())
+//     }
+// }
+impl<L: AsFlatProps, R: AsFlatProps> AsFlatProps for Join<L, R> where
+<R as AsFlatProps>::Undefined: JoinProps<L::Undefined>
+{
+    type Defined = <<R as AsFlatProps>::Undefined as JoinProps<L::Undefined>>::DefinedResult;
+    type Undefined = <<R as AsFlatProps>::Undefined as JoinProps<L::Undefined>>::UndefinedResult;
     fn as_flat_props() -> Self::Undefined {
         Self::join()
     }
 }
+impl<L: AsFlatProps> AsFlatProps for Join<L, ()> where
+{
+    type Defined = L::Defined;
+    type Undefined = L::Undefined;
+    fn as_flat_props() -> Self::Undefined {
+        L::as_flat_props()
+    }
+}
+// impl<L: AsFlatProps> AsProps for Join<L, ()> {
+//     type Defined = Props<L::Defined>;
+//     type Undefined = Props<L::Undefined>;
+//     fn as_props() -> Self::Undefined {
+//         Props(L::as_flat_props())
+//     }
+// }
 
 // impl<L: AsFlatProps + JoinProps<R::Undefined>, R: AsFlatProps> JoinProps<L::Undefined> for Join<L, R> {
 //     type DefinedResult = L::DefinedResult;
@@ -418,21 +446,28 @@ impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> AsFlatProps for J
 //         Props(Self::join())
 //     }
 // }
-impl<L: AsFlatProps> AsProps for Join<L, ()> {
-    type Defined = Props<L::Defined>;
-    type Undefined = Props<L::Undefined>;
-    fn as_props() -> Self::Undefined {
-        L::as_props()
-    }
-}
+// impl<L: AsFlatProps> AsProps for Join<L, ()> {
+//     type Defined = Props<L::Defined>;
+//     type Undefined = Props<L::Undefined>;
+//     fn as_props() -> Self::Undefined {
+//         L::as_props()
+//     }
+// }
+// impl AsFlatProps for () {
+//     type Defined = ();
+//     type Undefined = ();
+//     fn as_flat_props() -> Self::Undefined {
+//         ()
+//     }
+// }
 
-impl <T: AsField> AsFlatProps for T {
-    type Defined = (D<0, T>,);
-    type Undefined = (U<0, T>,);
-    fn as_flat_props() -> Self::Undefined {
-        (U::<0, _>(PhantomData),)
-    }
-}
+// impl <T: AsField> AsFlatProps for T {
+//     type Defined = (D<0, T>,);
+//     type Undefined = (U<0, T>,);
+//     fn as_flat_props() -> Self::Undefined {
+//         (U::<0, _>(PhantomData),)
+//     }
+// }
 
 construct_implementations! { }
 

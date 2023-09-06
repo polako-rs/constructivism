@@ -259,6 +259,14 @@ impl Construct {
                         #lib::Field::new()
                     }
                 }
+                impl #lib::AsFlatProps for #ident {
+                    type Defined = (#lib::D<0, #ident>,);
+                    type Undefined = (#lib::U<0, #ident>,);
+                    fn as_flat_props() -> Self::Undefined {
+                        (#lib::U::<0, _>(::std::marker::PhantomData),)
+                    }
+
+                }
                 impl #lib::New<#prop_ty> for #ident {
                     fn new(from: #prop_ty) -> #ident {
                         #ident(from)
@@ -309,10 +317,10 @@ impl Construct {
                     type Methods = #mod_ident::Methods;
                     // type MixedProps = (#type_props);
                     type MixedProps = (#mixed_props);
-                    type Hierarchy = (Self, <Self::Extends as #lib::Object>::Hierarchy);
-                    // type Hierarchy = (Self, #hierarchy);
-                    type ExpandedProps = (#type_props <Self::Extends as #lib::Object>::ExpandedProps);
-                    // type ExpandedProps = #lib::Join<(#mixed_props), #expanded_props>;
+                    // type Hierarchy = (Self, <Self::Extends as #lib::Object>::Hierarchy);
+                    type Hierarchy = (Self, #hierarchy);
+                    // type ExpandedProps = (#type_props <Self::Extends as #lib::Object>::ExpandedProps);
+                    type ExpandedProps = #lib::Join<(#mixed_props), #expanded_props>;
                     
                     fn construct_all<P>(props: P) -> <Self as #lib::Object>::Hierarchy
                     where Self: Sized, P: #lib::DefinedValues<

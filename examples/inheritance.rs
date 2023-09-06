@@ -60,7 +60,7 @@ pub struct Node {
 
 #[derive(Construct)]
 #[extends(Node)]
-// #[mixin(Visibility)]
+#[mixin(Visibility)]
 pub struct Div {
     color: f32,
 
