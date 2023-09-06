@@ -14,3 +14,4 @@ members = [
 [dependencies]
 constructivist_core = { path = "crates/constructivist_core" }
 constructivist_macro_support = { path = "crates/constructivist_macro_support" }
+tuple_utils = "0.4.0"

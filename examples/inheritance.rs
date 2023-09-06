@@ -1,14 +1,17 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use constructivist_core::Methods;
+use constructivist_core::Mixin;
+use constructivist_core::Object;
 use constructivist_core::new;
 use constructivist_macro_support::Construct;
 use constructivist_core::Construct;
 use constructivist_core::Singleton;
+use constructivist_macro_support::Mixin;
 
 
 macro_rules! methods {
-    ($t:ty) => { <$t as Construct>::Methods::instance() };
+    ($t:ty) => { <$t as Object>::Methods::instance() };
 }
 
 // define some trait
@@ -26,19 +29,25 @@ impl<T: Methods<Div>> AddChildren for T {
 
 pub fn main() {
     // direct use:
-    let border_methods = <Border as Construct>::Methods::instance();
+    let border_methods = <Border as Object>::Methods::instance();
     border_methods.add_children(1, vec![23]);
 
     // with custom macro:
     methods!(Div).add_children(1, vec![23]);
     methods!(Border).add_children(1, vec![23]);
     let _this = new!(Border { 
-        width: 25.
+        width: 25.,
+        // visible: false,
     });
     // let a = methods!(Border).width((&this).into());
     // TODO: add this example to compilation tests
     // uncoment next to get complation error (Slider doesn't have Div in hierarchy)
     // methods!(Slider).add_children(1, vec![23]);
+}
+
+#[derive(Mixin)]
+pub struct Visibility {
+    visible: bool
 }
 
 #[allow(dead_code)]
@@ -48,9 +57,12 @@ pub struct Node {
     height: f32,
 }
 
+
 #[derive(Construct)]
 #[extends(Node)]
+// #[mixin(Visibility)]
 pub struct Div {
+    color: f32,
 
 }
 

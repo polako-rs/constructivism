@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "constructivist_core",
  "constructivist_macro_support",
+ "tuple_utils",
 ]
 
 [[package]]
@@ -146,6 +147,12 @@ dependencies = [
  "toml_datetime",
  "winnow",
 ]
+
+[[package]]
+name = "tuple_utils"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cffaaf9392ef73cd30828797152476aaa2fa37a17856934fa63d4843f34290e9"
 
 [[package]]
 name = "unicode-ident"

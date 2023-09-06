@@ -17,39 +17,21 @@ pub mod traits {
     pub use super::Strip;
     pub use super::New;
     pub use super::Object;
+    pub use super::Mixin;
 }
-
-// pub trait Cstr {
-//     type Fields: Singleton;
-//     type Methods: Singleton;
-//     type Props: AsProps;
-//     fn construct(props: Self::Props) -> Self;
-// }
 
 
 pub trait Construct {
-    type Fields: Singleton;
-    type Methods: Singleton;
     type Props: AsProps;
-    // type Extends: Construct;
-    // type Hierarchy;
-    // type ExpandedProps: AsProps;
-    // fn construct_fields() -> &'static Self::Fields;
-    // fn construct_props() -> Props<<<Self as Construct>::UndefinedProps as IntoProps>::Target>;
-    fn construct(props: Self::Props)-> Self;
-    // fn split_props<T: SplitAt<{I}>>(props: T) -> (T::Left, T::Right){
-    //     T::split(props)
-    // }
-    // fn construct_all<P>(props: P) -> <Self as Construct>::Hierarchy
-    // where 
-    //     Self: Sized,
-    //     P: DefinedValues<Self::Props, Output = <<<Self as Construct>::Extends as Construct>::ExpandedProps as AsProps>::Defined >;
+    fn construct(props: Self::Props) -> Self;
 }
 
 pub trait Object: Construct {
     type Extends: Object;
+    type Fields: Singleton;
+    type Methods: Singleton;
     // type Mixed;
-    // type MixedProps: AsProps;
+    type MixedProps: AsProps;
     type Hierarchy;
     type ExpandedProps: AsProps;
     // fn mixed(props: Self::MixedProps) -> Self::Mixed;
@@ -58,14 +40,21 @@ pub trait Object: Construct {
     //     P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
     fn construct_all<P>(props: P) -> <Self as Object>::Hierarchy where 
         Self: Sized,
-        P: DefinedValues<Self::Props, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
+        P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
 }
+
+pub trait Mixin: Construct {
+    type Fields<T: Singleton + 'static>: Singleton;
+    type Methods<T: Singleton + 'static>: Singleton;
+}
+
+
 #[macro_export]
 macro_rules! construct {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
             use $crate::traits::*;
-            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+            let fields = <<$t as $crate::Object>::Fields as $crate::Singleton>::instance();
             let props = <<$t as $crate::Construct>::Props as $crate::AsProps>::as_props();
             $(
                 let param = &fields.$f;
@@ -84,7 +73,7 @@ macro_rules! constructall {
     ($t:ty { $($f:ident: $e:expr,)+ }) => {
         {
             use $crate::traits::*;
-            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+            let fields = <<$t as $crate::Object>::Fields as $crate::Singleton>::instance();
             let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
             $(
                 let param = &fields.$f;
@@ -133,8 +122,8 @@ macro_rules! new {
     ($t:ty { $($rest:tt)* } ) => {
         {
             use $crate::traits::*;
-            type Fields = <$t as $crate::Construct>::Fields;
-            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+            type Fields = <$t as $crate::Object>::Fields;
+            let fields = <<$t as $crate::Object>::Fields as $crate::Singleton>::instance();
             let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
@@ -144,22 +133,24 @@ macro_rules! new {
 }
 
 impl Construct for () {
-    type Fields = ();
     type Props = ();
-    type Methods = ();
-
+    
     fn construct(_: Self::Props)-> Self {
         ()
     }
 }
 
 impl Object for () {
+    type Fields = ();
+    type Methods = ();
     type Extends = ();
     type Hierarchy = ();
+    // type Mixed = ();
+    type MixedProps = ();
     type ExpandedProps = ();
     fn construct_all<P>(_: P) -> <Self as Object>::Hierarchy
     where Self: Sized, P: DefinedValues<
-        Self::Props,
+        Self::MixedProps,
         Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined
     > {
         ()
@@ -367,6 +358,72 @@ pub trait JoinProps<T> {
     type DefinedResult;
     type UndefinedResult;
     fn join() -> Self::UndefinedResult;
+}
+
+// impl<T: AsProps> JoinProps<()> for T {
+//     type DefinedResult = T::Defined;
+//     type UndefinedResult = T::Undefined;
+//     fn join() -> Self::UndefinedResult {
+//         T::as_props()
+//     }
+// }
+
+// impl<T: AsProps> JoinProps<T> for () {
+//     type DefinedResult = T::Defined;
+//     type UndefinedResult = T::Undefined;
+//     fn join() -> Self::UndefinedResult {
+//         T::as_props()
+//     }
+// }
+
+
+pub struct Join<L, R>(PhantomData<(L, R)>);
+
+impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> JoinProps<R::Undefined> for Join<L, R> {
+    type DefinedResult = R::DefinedResult;
+    type UndefinedResult = R::UndefinedResult;
+    fn join() -> Self::UndefinedResult {
+        R::join()
+    }
+}
+
+// impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> AsProps for Join<L, R> {
+//     type Defined = <R as JoinProps<L::Undefined>>::DefinedResult;
+//     type Undefined = <R as JoinProps<L::Undefined>>::UndefinedResult;
+//     fn as_props() -> Self::Undefined {
+//         Self::join()
+//     }
+// }
+
+impl<L: AsFlatProps, R: AsFlatProps + JoinProps<L::Undefined>> AsFlatProps for Join<L, R> {
+    type Defined = <R as JoinProps<L::Undefined>>::DefinedResult;
+    type Undefined = <R as JoinProps<L::Undefined>>::UndefinedResult;
+    fn as_flat_props() -> Self::Undefined {
+        Self::join()
+    }
+}
+
+// impl<L: AsFlatProps + JoinProps<R::Undefined>, R: AsFlatProps> JoinProps<L::Undefined> for Join<L, R> {
+//     type DefinedResult = L::DefinedResult;
+//     type UndefinedResult = L::UndefinedResult;
+//     fn join() -> Self::UndefinedResult {
+//         L::join()
+//     }
+// }
+
+// impl<L: AsFlatProps + JoinProps<R::Undefined>, R: AsFlatProps> AsProps for Join<L, R> {
+//     type Defined = Props<<L as JoinProps<R::Undefined>>::DefinedResult>;
+//     type Undefined = Props<<L as JoinProps<R::Undefined>>::UndefinedResult>;
+//     fn as_props() -> Self::Undefined {
+//         Props(Self::join())
+//     }
+// }
+impl<L: AsFlatProps> AsProps for Join<L, ()> {
+    type Defined = Props<L::Defined>;
+    type Undefined = Props<L::Undefined>;
+    fn as_props() -> Self::Undefined {
+        L::as_props()
+    }
 }
 
 impl <T: AsField> AsFlatProps for T {
