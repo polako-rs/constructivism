@@ -330,6 +330,17 @@ impl Construct {
                         let ((args), props) = props.extract_values();
                         (<Self as #lib::Construct>::construct(args), <<Self as #lib::Object>::Extends as #lib::Object>::construct_all(props))
                     }
+                    fn build<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
+                        I, Self::Props,
+                        Value = <Self::Props as #lib::Extractable>::Output,
+                        Rest = <<Self::Extends as #lib::Object>::ExpandedProps as #lib::AsProps>::Defined
+                    > {
+                        let (args, rest) = params.extract_params();
+                        (
+                            <Self as #lib::Construct>::construct(args),
+                            <Self::Extends as #lib::Object>::build(rest)
+                        )
+                    }
                 }
             }
         } else {
@@ -522,6 +533,7 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     let join_props = impl_all_join_props(max_size);
     let as_flat_props = impl_all_as_flat_props(max_size);
     let defined = impl_all_defined(max_size);
+    let extracts = impl_all_extracts(max_size);
     proc_macro::TokenStream::from(quote! {
         #extract_field_impls
         #add_to_props
@@ -529,6 +541,7 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
         #join_props
         #as_flat_props
         #defined
+        #extracts
     })
 }
 
@@ -587,6 +600,18 @@ fn impl_all_defined(max_size: u8) -> TokenStream {
     for size in 1..max_size + 1 {
         let defined = impl_defined(size);
         out = quote! { #out #defined }
+    }
+    out
+}
+fn impl_all_extracts(max_size: u8) -> TokenStream {
+    let mut out = quote! { };
+    for size in 1..max_size + 1 {
+        let extractable = impl_extractable(size);
+        out = quote! { #out #extractable };
+        for defined in 0..size + 1{
+            let extract = impl_extract(defined, size);
+            out = quote! { #out #extract };
+        }
     }
     out
 }
@@ -759,6 +784,99 @@ fn impl_defined_values(defined: u8, size: u8) -> TokenStream {
             fn extract_values(self) -> ((#pres), Self::Output) {
                 let (#dcst) = self.0;
                 ((#ex),Props((#mv)))
+            }
+        }
+    }
+}
+
+/// ```ignore
+/// impl<T0, T1> Extractable for (T0, T1) {
+///     type Input = (D<0, T0>, D<1, T1>);
+///     type Output = (T0, T1);
+///     fn extract(input: Self::Input) -> Self::Output {
+///         let (p0, p1) = input;
+///         (p0.0, p1.0)
+///     }
+/// }
+/// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Props<(T0, T1, T2, T3)> 
+/// where
+///     T2: MoveTo<0>,
+///     T3: MoveTo<1>,
+/// {
+///     type Value = E::Output;
+///     type Rest = Props<(T2::Target, T3::Target)>;
+///     fn extract_params(self) -> (Self::Value, Self::Rest) {
+///         let (p0, p1, p2, p3) = self.0;
+///         (
+///             E::extract((p0, p1)),
+///             Props((p2.move_to(), p3.move_to()))
+///         )
+///     }
+/// }
+/// ```
+fn impl_extractable(size: u8) -> TokenStream {
+    let mut ein = quote! { };
+    let mut edef = quote! { };
+    let mut eout = quote! { };
+    let mut dcstr = quote! { };
+
+    for i in 0..size {
+        let ti = format_ident!("T{i}");
+        let pi = format_ident!("p{i}");
+        ein = quote! { #ein #ti, };
+        edef = quote! { #edef D<#i, #ti>, };
+        dcstr = quote! { #dcstr #pi, };
+        eout = quote! { #eout #pi.0, };
+    }
+    quote! {
+        impl<#ein> Extractable for (#ein) {
+            type Input = (#edef);
+            type Output = (#ein);
+            fn extract(input: Self::Input) -> Self::Output {
+                let (#dcstr) = input;
+                (#eout)
+            }
+        }
+    }
+}
+fn impl_extract(defined: u8, size: u8) -> TokenStream {
+    let mut ein = quote! { };
+    let mut pin = quote! { };
+    let mut pfor = quote! { };
+    let mut pcstr = quote! { };
+    let mut trest = quote! { };
+    let mut pdcstr = quote! { };
+    let mut pout = quote! { };
+    let mut pprops = quote! { };
+
+    for i in 0..size {
+        let ti = format_ident!("T{i}");
+        let pi = format_ident!("p{i}");
+        if i < defined {
+            ein = quote! { #ein #ti, };
+            pout = quote! { #pout #pi, }
+        } else {
+            let j = i - defined;
+            pcstr = quote! { #pcstr #ti: MoveTo<#j>, };
+            trest = quote! { #trest #ti::Target, };
+            pprops = quote! { #pprops #pi.move_to(), };
+        }
+        pin = quote! { #pin #ti, };
+        pfor = quote! { #pfor #ti, };
+        pdcstr = quote! { #pdcstr #pi, };
+    }
+    quote! {
+        impl<#pin E: Extractable<Input = (#ein)>> ExtractParams<#defined, E> for Props<(#pin)> 
+        where #pcstr
+        {
+            type Value = E::Output;
+            type Rest = Props<(#trest)>;
+            fn extract_params(self) -> (Self::Value, Self::Rest) {
+                let (#pdcstr) = self.0;
+                (
+                    E::extract((#pout)),
+                    Props((#pprops))
+                )
             }
         }
     }

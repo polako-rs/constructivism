@@ -18,11 +18,12 @@ pub mod traits {
     pub use super::New;
     pub use super::Object;
     pub use super::Mixin;
+    // pub use super::AsProps;
 }
 
 
 pub trait Construct {
-    type Props: AsProps;
+    type Props: AsProps + Extractable;
     fn construct(props: Self::Props) -> Self;
 }
 
@@ -41,6 +42,12 @@ pub trait Object: Construct {
     fn construct_all<P>(props: P) -> <Self as Object>::Hierarchy where 
         Self: Sized,
         P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
+
+    fn build<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
+        I, Self::Props,
+        Value = <Self::Props as Extractable>::Output,
+        Rest = <<Self::Extends as Object>::ExpandedProps as AsProps>::Defined
+    >;
 }
 
 pub trait Mixin: Construct {
@@ -155,6 +162,13 @@ impl Object for () {
     > {
         ()
     }
+    fn build<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
+        I, Self::Props,
+        Value = <Self::Props as Extractable>::Output,
+        Rest = <<Self::Extends as Object>::ExpandedProps as AsProps>::Defined
+    > {
+        ()
+    }
 
 }
 
@@ -209,7 +223,7 @@ impl<T> Field<T> {
     }
 }
 
-pub struct D<const I: u8, T>(T);
+pub struct D<const I: u8, T>(pub T);
 pub struct U<const I: u8, T>(pub PhantomData<T>);
 pub struct F<const I: u8, T>(PhantomData<T>);
 
@@ -222,6 +236,35 @@ pub trait Singleton {
 impl Singleton for () {
     fn instance() -> &'static Self {
         &()
+    }
+}
+
+pub trait Extractable {
+    type Input;
+    type Output;
+    fn extract(input: Self::Input) -> Self::Output;
+}
+
+impl Extractable for () {
+    type Input = ();
+    type Output = ();
+    fn extract(_: Self::Input) -> Self::Output {
+        ()
+    }
+}
+
+
+pub trait ExtractParams<const S: u8, T> { 
+    type Value;
+    type Rest;
+    fn extract_params(self) -> (Self::Value, Self::Rest);
+}
+
+impl ExtractParams<0, ()> for Props<()> {
+    type Value = ();
+    type Rest = Props<()>;
+    fn extract_params(self) -> (Self::Value, Self::Rest) {
+        ((), Props(()))
     }
 }
 
@@ -469,8 +512,6 @@ impl<L: AsFlatProps> AsFlatProps for Join<L, ()> where
 //     }
 // }
 
-construct_implementations! { }
-
 impl<T: NonUnit> Strip for (T, ()) {
     type Output = T;
     fn strip(self) -> Self::Output {
@@ -518,3 +559,5 @@ impl <T0: NonUnit, T1: NonUnit, T2: NonUnit, T3: NonUnit> Flattern for (T0, (T1,
         (p0, p1, p2, p3)
     }
 }
+
+construct_implementations! { }
