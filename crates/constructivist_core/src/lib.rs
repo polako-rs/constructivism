@@ -18,12 +18,13 @@ pub mod traits {
     pub use super::New;
     pub use super::Object;
     pub use super::Mixin;
+    pub use super::Mixed;
     // pub use super::AsProps;
 }
 
 
 pub trait Construct {
-    type Props: AsProps + Extractable;
+    type Props: Extractable;
     fn construct(props: Self::Props) -> Self;
 }
 
@@ -32,21 +33,18 @@ pub trait Object: Construct {
     type Fields: Singleton;
     type Methods: Singleton;
     // type Mixed;
-    type MixedProps: AsProps;
+    type MixedProps: Extractable;
     type Hierarchy;
-    type ExpandedProps: AsProps;
+    type ExpandedProps: Extractable;
     // fn mixed(props: Self::MixedProps) -> Self::Mixed;
     // fn build<P>(props: P) -> <Self as Object>::Hierarchy where 
     //     Self: Sized,
     //     P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
-    fn construct_all<P>(props: P) -> <Self as Object>::Hierarchy where 
-        Self: Sized,
-        P: DefinedValues<Self::MixedProps, Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined >;
-
+    
     fn build<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::Props,
         Value = <Self::Props as Extractable>::Output,
-        Rest = <<Self::Extends as Object>::ExpandedProps as AsProps>::Defined
+        Rest = <<<Self::Extends as Object>::ExpandedProps as Extractable>::Input as AsParams>::Defined
     >;
 }
 
@@ -81,7 +79,7 @@ macro_rules! constructall {
         {
             use $crate::traits::*;
             let fields = <<$t as $crate::Object>::Fields as $crate::Singleton>::instance();
-            let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
+            let props = <<$t as $crate::Object>::ExpandedProps as $crate::Extractable>::as_params();
             $(
                 let param = &fields.$f;
                 let field = param.field();
@@ -89,7 +87,7 @@ macro_rules! constructall {
                 let props = props + param;
             )+
             let defined_props = props.defined();
-            <$t as $crate::Object>::construct_all(defined_props).flattern()
+            <$t as $crate::Object>::build(defined_props).flattern()
         }
         
     };
@@ -131,10 +129,10 @@ macro_rules! new {
             use $crate::traits::*;
             type Fields = <$t as $crate::Object>::Fields;
             let fields = <<$t as $crate::Object>::Fields as $crate::Singleton>::instance();
-            let props = <<$t as $crate::Object>::ExpandedProps as $crate::AsProps>::as_props();
+            let props = <<$t as $crate::Object>::ExpandedProps as $crate::Extractable>::as_params();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
-            <$t as $crate::Object>::construct_all(defined_props)
+            <$t as $crate::Object>::build(defined_props)
         }
     };
 }
@@ -155,17 +153,11 @@ impl Object for () {
     // type Mixed = ();
     type MixedProps = ();
     type ExpandedProps = ();
-    fn construct_all<P>(_: P) -> <Self as Object>::Hierarchy
-    where Self: Sized, P: DefinedValues<
-        Self::MixedProps,
-        Output = <<<Self as Object>::Extends as Object>::ExpandedProps as AsProps>::Defined
-    > {
-        ()
-    }
+    
     fn build<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::Props,
         Value = <Self::Props as Extractable>::Output,
-        Rest = <<Self::Extends as Object>::ExpandedProps as AsProps>::Defined
+        Rest = <<<Self::Extends as Object>::ExpandedProps as Extractable>::Input as AsParams>::Defined
     > {
         ()
     }
@@ -177,7 +169,14 @@ impl<T> Props<T> {
     pub fn validate<P>(&self, _: P) -> fn() -> () {
         || { }
     }
+
 }
+
+// impl<C: Object> Props<<<C::ExpandedProps as Extractable>::Input as AsParams>::Undefined> {
+//     pub fn for_construct() -> Self {
+
+//     }
+// }
 
 pub struct PropConflict<N>(PhantomData<N>);
 impl<N> PropConflict<N> {
@@ -240,9 +239,13 @@ impl Singleton for () {
 }
 
 pub trait Extractable {
-    type Input;
+    type Input: AsParams;
     type Output;
     fn extract(input: Self::Input) -> Self::Output;
+
+    fn as_params() -> <Self::Input as AsParams>::Undefined {
+        <Self::Input as AsParams>::as_params()
+    }
 }
 
 impl Extractable for () {
@@ -253,6 +256,27 @@ impl Extractable for () {
     }
 }
 
+pub trait Mixed<Right> where Self: Sized {
+    type Output;
+    fn split(mixed: Self::Output) -> (Self, Right);
+}
+pub struct Mix<L, R>(PhantomData<(L, R)>);
+
+impl<O: AsParams, L: Extractable, R: Extractable> Extractable for Mix<L, R> where
+L::Input: Mixed<R::Input, Output = O>,
+{
+    type Input = O;
+    type Output = (L::Output, R::Output);
+    fn extract(input: Self::Input) -> Self::Output {
+        let (left, right) = <L::Input as Mixed<R::Input>>::split(input);
+        (L::extract(left), R::extract(right))
+    }
+}
+
+
+
+
+
 
 pub trait ExtractParams<const S: u8, T> { 
     type Value;
@@ -260,13 +284,22 @@ pub trait ExtractParams<const S: u8, T> {
     fn extract_params(self) -> (Self::Value, Self::Rest);
 }
 
-impl ExtractParams<0, ()> for Props<()> {
-    type Value = ();
+// impl ExtractParams<0, ()> for Props<()> {
+//     type Value = ();
+//     type Rest = Props<()>;
+//     fn extract_params(self) -> (Self::Value, Self::Rest) {
+//         ((), Props(()))
+//     }
+// }
+impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Props<()>
+{
+    type Value = E::Output;
     type Rest = Props<()>;
     fn extract_params(self) -> (Self::Value, Self::Rest) {
-        ((), Props(()))
+        (E::extract(()), Props(()))
     }
 }
+
 
 pub trait ExtractField<F, T> {
     fn field(&self, f: &Field<T>) -> F;
@@ -363,12 +396,19 @@ impl DefinedValues<()> for () {
     }
 }
 
+pub trait AsParams {
+    type Defined;
+    type Undefined;
+    fn as_params() -> Self::Undefined;
+}
+
+// TODO: remove this
 pub trait AsFlatProps {
     type Defined;
     type Undefined;
     fn as_flat_props() -> Self::Undefined;
 }
-
+// TODO: remove this
 impl<T: AsFlatProps> AsProps for T {
     type Defined = Props<T::Defined>;
     type Undefined = Props<T::Undefined>;

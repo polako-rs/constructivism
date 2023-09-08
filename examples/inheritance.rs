@@ -43,9 +43,8 @@ pub fn main() {
     // });
     let _ = {
         use constructivist_core::traits::*;
-        type Fields = <Div as constructivist_core::Object>::Fields;
         let fields = <<Div as constructivist_core::Object>::Fields as constructivist_core::Singleton>::instance();
-        let props = <<Div as constructivist_core::Object>::ExpandedProps as constructivist_core::AsProps>::as_props();
+        let props = <<Div as constructivist_core::Object>::ExpandedProps as constructivist_core::Extractable>::as_params();
         let prop = &fields.width;
         let field = prop.field();
         let value = props.field(&field).define(prop.value(25.));
@@ -81,7 +80,7 @@ pub struct Node {
 #[allow(dead_code)]
 #[derive(Construct)]
 #[extends(Node)]
-// #[mixin(Visibility)]
+#[mixin(Visibility)]
 pub struct Div {
     color: f32,
     alpha: f32,
@@ -93,108 +92,7 @@ pub struct Div {
 // pub struct Border {
 //     border_width: f32,
 // }
-// // Recursive expansion of Construct macro
-// // =======================================
 
-// mod border_construct {
-//     use super::*;
-//     pub struct Fields {
-//         #[allow(unused_variables)]
-//         pub border_width: ::constructivist_core::Prop<border_width, f32>,
-//     }
-//     pub struct Methods;
-
-//     impl ::constructivist_core::Singleton for Fields {
-//         fn instance() -> &'static Self {
-//             &Fields {
-//                 border_width: ::constructivist_core::Prop(::std::marker::PhantomData),
-//             }
-//         }
-//     }
-//     impl ::constructivist_core::Singleton for Methods {
-//         fn instance() -> &'static Self {
-//             &Methods
-//         }
-//     }
-//     impl ::std::ops::Deref for Fields {
-//         type Target = <Div as ::constructivist_core::Object>::Fields;
-//         fn deref(&self) -> &Self::Target {
-//             < <Div as ::constructivist_core::Object> ::Fields as ::constructivist_core::Singleton> ::instance()
-//         }
-//     }
-//     impl ::constructivist_core::Methods<Border> for Methods {}
-
-//     impl ::std::ops::Deref for Methods {
-//         type Target = <Div as ::constructivist_core::Object>::Methods;
-//         fn deref(&self) -> &Self::Target {
-//             < <Div as ::constructivist_core::Object> ::Methods as ::constructivist_core::Singleton> ::instance()
-//         }
-//     }
-//     impl Default for border_width {
-//         fn default() -> Self {
-//             border_width(Default::default())
-//         }
-//     }
-//     #[allow(non_camel_case_types)]
-//     pub struct border_width(pub f32);
-
-//     impl<T: Into<f32>> From<T> for border_width {
-//         fn from(__value__: T) -> Self {
-//             border_width(__value__.into())
-//         }
-//     }
-//     impl ::constructivist_core::AsField for border_width {
-//         fn as_field() -> ::constructivist_core::Field<Self> {
-//             ::constructivist_core::Field::new()
-//         }
-//     }
-//     impl ::constructivist_core::AsFlatProps for border_width {
-//         type Defined = (::constructivist_core::D<0, border_width>,);
-//         type Undefined = (::constructivist_core::U<0, border_width>,);
-//         fn as_flat_props() -> Self::Undefined {
-//             (::constructivist_core::U::<0, _>(::std::marker::PhantomData),)
-//         }
-//     }
-//     impl ::constructivist_core::New<f32> for border_width {
-//         fn new(from: f32) -> border_width {
-//             border_width(from)
-//         }
-//     }
-// }
-// impl ::constructivist_core::NonUnit for Border {}
-
-// impl ::constructivist_core::Construct for Border {
-//     type Props = (border_construct::border_width,);
-//     fn construct(props: Self::Props) -> Self {
-//         let (border_construct::border_width(mut border_width),) = props;
-//         Self { border_width }
-//     }
-// }
-// impl ::constructivist_core::Object for Border {
-//     type Extends = Div;
-//     type Fields = border_construct::Fields;
-//     type Methods = border_construct::Methods;
-//     type MixedProps = (border_construct::border_width,);
-//     type Hierarchy = (
-//         Self,
-//         <Self::Extends as ::constructivist_core::Object>::Hierarchy,
-//     );
-//     type ExpandedProps = ::constructivist_core::Join<
-//         (border_construct::border_width,),
-//         <Self::Extends as ::constructivist_core::Object>::ExpandedProps,
-//     >;
-//     fn construct_all<P>(props:P) ->  <Self as ::constructivist_core::Object> ::Hierarchy where
-//         Self:Sized,
-//         P: ::constructivist_core::DefinedValues<
-//             Self::MixedProps,
-//             Output =  << <Self as ::constructivist_core::Object> ::Extends as ::constructivist_core::Object> ::ExpandedProps as ::constructivist_core::AsProps> ::Defined
-//     >{
-//         let (args, props) = props.extract_values();
-//         // let p: &dyn DefinedValues< <Self::Extends as Object>::MixedProps>  = &props;
-//         let rest = <<Self as ::constructivist_core::Object> ::Extends as ::constructivist_core::Object> ::construct_all(props);
-//         (<Self as ::constructivist_core::Construct> ::construct(args), rest)
-//     }
-// }
 
 // #[allow(dead_code)]
 // #[derive(Construct)]
@@ -342,32 +240,78 @@ impl<T0, T1> Extract for (T0, T1) {
     }
 }
 
-pub trait Mixed<const S: u8> {
-    type Input;
-    type Output;
-    fn extract(input: Self::Input) -> Self::Output;
+// impl<L0, R0, M: Mixed<1, 1, Input = (D<0, L0>, D<1, R0>)>> Extract for M {
+//     type Input = (D<0, L0>, D<1, R0>);
+//     type Output = M::Output;
+//     fn extract(input: Self::Input) -> Self::Output {
+//         M::extract(input)
+//     }
+// }
+// impl<L0, R0, M: Mixed<1, 2, Input = (D<0, L0>, D<1, R0>, D<2, R0>)>> Extract for M {
+//     type Input = (D<0, L0>, D<1, R0>, D<2, R0>);
+//     type Output = M::Output;
+//     fn extract(input: Self::Input) -> Self::Output {
+//         M::extract(input)
+//     }
+// }
+
+// impl<const L: u8, const R: u8, M: Mixed<L, R>> Extract for M {
+//     type Input = M::Input;
+//     type Output = M::Output;
+//     fn extract(input: Self::Input) -> Self::Output {
+//         M::extract(input)
+//     }
+// }
+
+impl<O, L: Extract, R: Extract> Extract for Mix<L, R> where
+L::Input: Mixed<R::Input, Output = O>,
+{
+    type Input = O;
+    type Output = (L::Output, R::Output);
+    fn extract(input: Self::Input) -> Self::Output {
+        let (left, right) = <L::Input as Mixed<R::Input>>::split(input);
+        (L::extract(left), R::extract(right))
+    }
 }
 
-impl<T0, T1, M: Mixed<2, Input = (D<0, T0>, D<1, T1>)>> Extract for M {
-    type Input = (D<0, T0>, D<1, T1>);
-    type Output = M::Output;
-    fn extract(input: Self::Input) -> Self::Output {
-        M::extract(input)
+pub trait Mixed<Right> where Self: Sized {
+    type Output;
+    fn split(mixed: Self::Output) -> (Self, Right);
+}
+
+impl<L0, R0> Mixed<(D<0, R0>,)> for (D<0, L0>,) {
+    type Output = (D<0, L0>, D<1, R0>);
+    fn split(joined: Self::Output) -> (Self, (D<0, R0>,)) {
+        let (l0, r0) = joined;
+        let r0 = D::<0, _>(r0.0);
+        ((l0,), (r0,))
+
+    }
+}
+
+impl<L0, R0, R1> Mixed<(D<0, R0>, D<1, R1>)> for (D<0, L0>,) {
+    type Output = (D<0, L0>, D<1, R0>, D<2, R1>);
+    fn split(joined: Self::Output) -> (Self, (D<0, R0>, D<1, R1>)) {
+        let (l0, r0, r1) = joined;
+        let r0 = D::<0, _>(r0.0);
+        let r1 = D::<1, _>(r1.0);
+        ((l0,), (r0, r1))
+        
+    }
+}
+
+impl<L0, L1, R0> Mixed<(D<0, R0>,)> for (D<0, L0>, D<1, L1>) {
+    type Output = (D<0, L0>, D<1, L1>, D<2, R0>);
+    fn split(joined: Self::Output) -> (Self, (D<0, R0>,)) {
+        let (l0, l1, r0) = joined;
+        let r0 = D::<0, _>(r0.0);
+        ((l0, l1), (r0,))
+        
     }
 }
 
 struct Mix<L, R>(PhantomData<(L, R)>);
 
-impl<L0, R0, L: Extract<Input = (D<0, L0>,)>, R: Extract<Input = (D<0, R0>,)>> Mixed<2> for Mix<L, R>
-{
-    type Input = (D<0, L0>, D<1, R0>);
-    type Output = (L::Output, R::Output);
-    fn extract(input: Self::Input) -> Self::Output {
-        let (d0, d1) = input;
-        let d1 = D::<0, _>(d1.0);
-        (L::extract((d0,)), R::extract((d1,)))
-    }
-}
 
 pub trait ExtractProps<const S: u8, T> {
     type Value;

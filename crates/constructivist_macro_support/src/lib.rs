@@ -292,48 +292,39 @@ impl Construct {
             let mut mixed_props = quote! { };
             let mut expanded_props = quote! { <Self::Extends as #lib::Object>::ExpandedProps };
             let mut hierarchy = quote! { <Self::Extends as #lib::Object>::Hierarchy };
-            for mixin in mixins.iter() { 
+            for mixin in mixins.iter().rev() { 
                 if mixed_props.is_empty() {
                     mixed_props = quote! { <#mixin as Construct>::Props, }
                 } else {
-                    mixed_props = quote! { <#mixin as Construct>::Props, (#mixed_props) }
+                    mixed_props = quote! {  #lib::Mix<<#mixin as Construct>::Props, #mixed_props> }
                 }
                 // mixed_props = quote! { (<#mixin as Construct>::Props, #mixed_props) };
-                // expanded_props = quote! { (<#mixin as Construct>::Props, #expanded_props ) };
+                expanded_props = quote! { (<#mixin as Construct>::Props, #expanded_props ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
-            mixed_props = match (type_props.is_empty(), mixed_props.is_empty()) {
-                (true, true) => quote! { () },
-                (false, true) => type_props.clone(),
-                (true, false) => mixed_props.clone(),
-                (false, false) => quote! { #type_props #mixed_props}
+            let mixed_props = if mixed_props.is_empty() {
+                quote! { (#type_props) }
+            } else {
+                quote! { #lib::Mix<(#type_props), #mixed_props> }
             };
-            mixed_props = type_props.clone();
+            // let hierarchy = quote! { ( #hierarchy) };
             
             quote! {
                 impl #lib::Object for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
                     type Methods = #mod_ident::Methods;
-                    // type MixedProps = (#type_props);
                     type MixedProps = (#mixed_props);
-                    // type Hierarchy = (Self, <Self::Extends as #lib::Object>::Hierarchy);
-                    type Hierarchy = (Self, #hierarchy);
-                    // type ExpandedProps = (#type_props <Self::Extends as #lib::Object>::ExpandedProps);
-                    type ExpandedProps = #lib::Join<(#mixed_props), #expanded_props>;
+                    type Hierarchy =  (Self, <Self::Extends as #lib::Object>::Hierarchy);
+                    // type Hierarchy = (Self, #hierarchy);
+                    type ExpandedProps = #lib::Mix<(#type_props), <Self::Extends as #lib::Object>::ExpandedProps>;
+                    // type ExpandedProps = (#type_props #expanded_props);
                     
-                    fn construct_all<P>(props: P) -> <Self as #lib::Object>::Hierarchy
-                    where Self: Sized, P: #lib::DefinedValues<
-                        Self::MixedProps,
-                        Output = <<<Self as #lib::Object>::Extends as #lib::Object>::ExpandedProps as #lib::AsProps>::Defined 
-                    > {
-                        let ((args), props) = props.extract_values();
-                        (<Self as #lib::Construct>::construct(args), <<Self as #lib::Object>::Extends as #lib::Object>::construct_all(props))
-                    }
+                    
                     fn build<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
                         I, Self::Props,
                         Value = <Self::Props as #lib::Extractable>::Output,
-                        Rest = <<Self::Extends as #lib::Object>::ExpandedProps as #lib::AsProps>::Defined
+                        Rest = <<<Self::Extends as #lib::Object>::ExpandedProps as #lib::Extractable>::Input as #lib::AsParams>::Defined
                     > {
                         let (args, rest) = params.extract_params();
                         (
@@ -526,7 +517,7 @@ pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
 #[proc_macro]
 pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let max_size = 8;
+    let max_size = 6;
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_props = impl_all_add_to_props(max_size);
     let defined_values = impl_all_defined_values(max_size);
@@ -534,6 +525,8 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     let as_flat_props = impl_all_as_flat_props(max_size);
     let defined = impl_all_defined(max_size);
     let extracts = impl_all_extracts(max_size);
+    let mixed = impl_all_mixed(max_size);
+    let as_params = impl_all_as_params(max_size);
     proc_macro::TokenStream::from(quote! {
         #extract_field_impls
         #add_to_props
@@ -542,6 +535,8 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
         #as_flat_props
         #defined
         #extracts
+        #as_params
+        #mixed
     })
 }
 
@@ -611,6 +606,54 @@ fn impl_all_extracts(max_size: u8) -> TokenStream {
         for defined in 0..size + 1{
             let extract = impl_extract(defined, size);
             out = quote! { #out #extract };
+        }
+    }
+    out
+}
+fn impl_all_mixed(max_size: u8) -> TokenStream {
+    let mut out = quote! { };
+    for size in 1..max_size + 1 {
+        for left in 0..size + 1 {
+            let right = size - left;
+            let mixed = impl_mixed(left, right);
+            out = quote! { #out #mixed };
+        }
+    }
+    out
+}
+/// ```ignore
+/// impl<T0, T1> AsParams for (D<0, T0>, D<1, T1>) {
+/// type Undefined = (U<0, T0>, U<1, T1>);
+///     fn as_params() -> Props<Self::Undefined> {
+///         Props((
+///             U::<0, T0>(PhantomData),
+///             U::<1, T1>(PhantomData)
+///         ))
+///     }
+/// }
+/// ```
+fn impl_all_as_params(max_size: u8) -> TokenStream {
+    let mut out = quote! { };
+    for size in 0..max_size+1 {
+        let mut ts = quote! { };
+        let mut ds = quote! { };
+        let mut us = quote! { };
+        let mut ps = quote! { };
+        for i in 0..size {
+            let ti = format_ident!("T{i}");
+            ts = quote! { #ts #ti, };
+            ds = quote! { #ds D<#i, #ti>, };
+            us = quote! { #us U<#i, #ti>, };
+            ps = quote! { #ps U::<#i, #ti>(::std::marker::PhantomData), }
+        }
+        out = quote! { #out
+            impl<#ts> AsParams for (#ds) {
+                type Undefined = Props<(#us)>;
+                type Defined = Props<(#ds)>;
+                fn as_params() -> Self::Undefined {
+                    Props(( #ps ))
+                }
+            }    
         }
     }
     out
@@ -1007,6 +1050,66 @@ fn impl_defined(size: u8) -> TokenStream {
             pub fn defined(self) -> Props<(#pout)> {
                 let (#dcstr) = self.0;
                 Props((#vals))
+            }
+        }
+    }
+}
+
+
+/// ```ignore
+/// impl<L0, R0, R1> Mixed<(D<0, R0>, D<1, R1>)> for (D<0, L0>,) {
+///     type Output = (D<0, L0>, D<1, R0>, D<2, R1>);
+///     fn split(joined: Self::Output) -> (Self, (D<0, R0>, D<1, R1>)) {
+///         let (l0, r0, r1) = joined;
+///         let r0 = D::<0, _>(r0.0);
+///         let r1 = D::<1, _>(r1.0);
+///         ((l0,), (r0, r1))
+///         
+///     }
+/// }
+/// ```
+fn impl_mixed(left: u8, right: u8) -> TokenStream {
+    let mut ls = quote! { };        // L0,
+    let mut rs = quote! { };        // R0, R1,
+    let mut dls = quote! { };       // D<0, L0>,
+    let mut drs = quote! { };       // D<0, R0>, D<1, R1>,
+    let mut lvs = quote! { };       // l0,
+    let mut rvs = quote! { };       // r0, r1,
+    let mut shift = quote! { };     // let r0 = D::<0, _>(r0.0);
+                                    // let r1 = D::<1, _>(r1.0);
+    let mut output = quote! { };    // D<0, L0>, D<1, R0>, D<2, R1>
+    for i in 0..left.max(right) {
+        let li = format_ident!("L{i}");
+        let ri = format_ident!("R{i}");
+        let lv = format_ident!("l{i}");
+        let rv = format_ident!("r{i}");
+        if i < left {
+            ls = quote! { #ls #li, };
+            dls = quote! { #dls D<#i, #li>, };
+            lvs = quote! { #lvs #lv, };
+        }
+        if i < right {
+            rs = quote! { #rs #ri, };
+            drs = quote! { #drs D<#i, #ri>, };
+            rvs = quote! { #rvs #rv, };
+            shift = quote! { #shift let #rv = D::<#i, _>(#rv.0); }
+        }
+    }
+    for i in 0..left+right {
+        let ti = if i < left {
+            format_ident!("L{i}")
+        } else {
+            format_ident!("R{}", i - left)
+        };
+        output = quote! { #output D<#i, #ti>, };
+    }
+    quote! {
+        impl<#ls #rs> Mixed<(#drs)> for (#dls) {
+            type Output = (#output);
+            fn split(joined: Self::Output) -> (Self, (#drs)) {
+                let (#lvs #rvs) = joined;
+                #shift
+                ((#lvs), (#rvs))
             }
         }
     }
