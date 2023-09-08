@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "constructivist"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "constructivist_core",
  "constructivist_macro_support",
@@ -13,14 +13,14 @@ dependencies = [
 
 [[package]]
 name = "constructivist_core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "constructivist_macro_support",
 ]
 
 [[package]]
 name = "constructivist_macro_support"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
