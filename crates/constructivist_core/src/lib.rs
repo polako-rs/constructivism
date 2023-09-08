@@ -10,8 +10,7 @@ pub mod traits {
     pub use super::AsField;
     pub use super::DefinedValue;
     pub use super::Flattern;
-    pub use super::NonUnit;
-    pub use super::Strip;
+
     pub use super::New;
     pub use super::Construct;
     pub use super::Mixin;
@@ -47,27 +46,7 @@ pub trait Mixin: ConstructItem {
 
 
 #[macro_export]
-macro_rules! constructall {
-    ($t:ty { $($f:ident: $e:expr,)+ }) => {
-        {
-            use $crate::traits::*;
-            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
-            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::Extractable>::as_params();
-            $(
-                let param = &fields.$f;
-                let field = param.field();
-                let param = props.field(&field).define(param.value($e.into()));
-                let props = props + param;
-            )+
-            let defined_props = props.defined();
-            <$t as $crate::Construct>::construct(defined_props).flattern()
-        }
-        
-    };
-}
-
-#[macro_export]
-macro_rules! new {
+macro_rules! construct {
     (@field $fields:ident $props:ident $f:ident $e:expr) => {
         let prop = &$fields.$f;
         let field = prop.field();
@@ -76,26 +55,26 @@ macro_rules! new {
         $props.validate(&prop)();
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
-        new!(@field $fields $props $f $e)
+        construct!(@field $fields $props $f $e)
     };
     (@fields $fields:ident $props:ident $f:ident) => {
-        new!(@field $fields $props $f $f);
-        new!(@fields $fields $props $($rest)*)
+        construct!(@field $fields $props $f $f);
+        construct!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr,) => {
-        new!(@field $fields $props $f $e);
+        construct!(@field $fields $props $f $e);
     };
     (@fields $fields:ident $props:ident $f:ident,) => {
-        new!(@field $fields $props $f $f);
-        new!(@fields $fields $props $($rest)*)
+        construct!(@field $fields $props $f $f);
+        construct!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident: $e:expr, $($rest:tt)*) => {
-        new!(@field $fields $props $f $e);
-        new!(@fields $fields $props $($rest)*)
+        construct!(@field $fields $props $f $e);
+        construct!(@fields $fields $props $($rest)*)
     };
     (@fields $fields:ident $props:ident $f:ident, $($rest:tt)*) => {
-        new!(@field $fields $props $f $f);
-        new!(@fields $fields $props $($rest)*)
+        construct!(@field $fields $props $f $f);
+        construct!(@fields $fields $props $($rest)*)
     };
     ($t:ty { $($rest:tt)* } ) => {
         {
@@ -103,9 +82,9 @@ macro_rules! new {
             type Fields = <$t as $crate::Construct>::Fields;
             let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
             let props = <<$t as $crate::Construct>::ExpandedProps as $crate::Extractable>::as_params();
-            new!(@fields fields props $($rest)*);
+            construct!(@fields fields props $($rest)*);
             let defined_props = props.defined();
-            <$t as $crate::Construct>::construct(defined_props)
+            <$t as $crate::Construct>::construct(defined_props).flattern()
         }
     };
 }
@@ -293,17 +272,11 @@ pub trait DefinedValue {
     fn extract_value(self) -> Self::Value;
 }
 
-pub trait NonUnit { }
-
 pub trait Flattern {
     type Output;
     fn flattern(self) -> Self::Output;
 }
 
-pub trait Strip {
-    type Output;
-    fn strip(self) -> Self::Output;
-}
 
 impl<const I: u8, T> F<I, T> {
     pub fn define(self, value: T) -> D<I, T> {
@@ -357,56 +330,6 @@ pub trait AsParams {
     type Defined;
     type Undefined;
     fn as_params() -> Self::Undefined;
-}
-
-
-
-impl<T: NonUnit> Strip for (T, ()) {
-    type Output = T;
-    fn strip(self) -> Self::Output {
-        self.0
-    }
-}
-
-impl<T: NonUnit, S:Strip> Strip for (T, S) {
-    type Output = (T, S::Output);
-    fn strip(self) -> Self::Output {
-        (self.0, (self.1.strip()))
-    }
-}
-
-
-
-impl<T0: NonUnit> Flattern for (T0, ()) {
-    type Output = T0;
-    fn flattern(self) -> Self::Output {
-        let (p0, _) = self;
-        p0
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit> Flattern for (T0, (T1, ())) {
-    type Output = (T0, T1);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, _)) = self;
-        (p0, p1)
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit, T2: NonUnit> Flattern for (T0, (T1, (T2, ()))) {
-    type Output = (T0, T1, T2);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, (p2, _))) = self;
-        (p0, p1, p2)
-    }
-}
-
-impl <T0: NonUnit, T1: NonUnit, T2: NonUnit, T3: NonUnit> Flattern for (T0, (T1, (T2, (T3, ())))) {
-    type Output = (T0, T1, T2, T3);
-    fn flattern(self) -> Self::Output {
-        let (p0, (p1, (p2, (p3, _)))) = self;
-        (p0, p1, p2, p3)
-    }
 }
 
 construct_implementations! { }

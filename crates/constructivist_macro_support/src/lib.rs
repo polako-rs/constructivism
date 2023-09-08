@@ -6,6 +6,8 @@ use proc_macro2::TokenStream;
 mod synext;
 use synext::*;
 
+const CONSTRUCT_SIZE: u8 = 16;
+
 fn lib() -> TokenStream {
     let lib = quote! { ::constructivist_core };
     let Some(manifest_path) = std::env::var_os("CARGO_MANIFEST_DIR")
@@ -436,7 +438,6 @@ impl Constructable {
                 #decls
                 #impls
             }
-            impl #lib::NonUnit for #type_ident { }
             impl #lib::ConstructItem for #type_ident {
                 type Props = ( #type_props );
                 fn construct_item(props: Self::Props) -> Self {
@@ -515,13 +516,14 @@ pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 
 #[proc_macro]
 pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let max_size = 16;
+    let max_size = CONSTRUCT_SIZE;
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_props = impl_all_add_to_props(max_size);
     let defined = impl_all_defined(max_size);
     let extracts = impl_all_extracts(max_size);
     let mixed = impl_all_mixed(max_size);
     let as_params = impl_all_as_params(max_size);
+    let flattern = impl_all_flattern(max_size);
     proc_macro::TokenStream::from(quote! {
         #extract_field_impls
         #add_to_props
@@ -529,6 +531,7 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
         #extracts
         #as_params
         #mixed
+        #flattern
     })
 }
 
@@ -617,6 +620,38 @@ fn impl_all_as_params(max_size: u8) -> TokenStream {
                     Props(( #ps ))
                 }
             }    
+        }
+    }
+    out
+}
+
+fn impl_all_flattern(max_depth: u8) -> TokenStream {
+    let mut out = quote! { };
+    for depth in 1..max_depth+1 {
+        let mut ts = quote! { };
+        let mut cstr = quote! { };
+        let mut ns = quote! { () };
+        let mut vs = quote! { };
+        let mut dcs = quote! { _ };
+        for i in 0..depth {
+            let ti = format_ident!("T{i}");
+            let pi = format_ident!("p{i}");
+            let tr = format_ident!("T{}", depth - i - 1);
+            let pr = format_ident!("p{}", depth - i - 1);
+            cstr = quote! { #cstr #ti: ConstructItem, };
+            ts = quote! { #ts #ti, };
+            vs = quote! { #vs #pi, };
+            ns = quote! { (#tr, #ns) };
+            dcs = quote! { (#pr, #dcs) };
+        }
+        out = quote! { #out 
+            impl<#cstr> Flattern for #ns {
+                type Output = (#ts);
+                fn flattern(self) -> Self::Output {
+                    let #dcs = self;
+                    ( #vs )
+                }
+            }
         }
     }
     out

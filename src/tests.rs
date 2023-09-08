@@ -1,4 +1,4 @@
-use constructivist_core::constructall;
+use constructivist_core::construct;
 use constructivist_macro_support::Construct;
 
 
@@ -30,7 +30,7 @@ pub struct Follow {
 
 #[test]
 fn test_construct_item() {
-    let (duck, animal) = constructall!(Duck {
+    let (duck, animal) = construct!(Duck {
         name: "bob",
         volume: 22,
     });
@@ -40,7 +40,7 @@ fn test_construct_item() {
 
 #[test]
 fn test_required() {
-    let (follow, duck, animal) = constructall!(Follow {
+    let (follow, duck, animal) = construct!(Follow {
         target: Entity(20),
         name: "Bill",
     });

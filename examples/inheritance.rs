@@ -1,4 +1,4 @@
-use constructivist_core::new;
+use constructivist_core::construct;
 use constructivist_core::ConstructItem;
 use constructivist_core::Methods;
 use constructivist_core::Construct;
@@ -34,7 +34,7 @@ pub fn main() {
 
     // with custom macro:
     methods!(Div).add_children(1, vec![23]);
-    let _this = new!(Border {
+    let _this = construct!(Border {
         width: 25.,
         visible: true,
         // visible: false,
