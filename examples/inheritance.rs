@@ -1,5 +1,4 @@
 use constructivist_core::new;
-use constructivist_core::AsProps;
 use constructivist_core::Construct;
 use constructivist_core::DefinedValues;
 use constructivist_core::Methods;
@@ -396,7 +395,6 @@ impl Obj for O2 {
             I,
             Self::Props,
             Value = <Self::Props as Extract>::Output,
-            // Rest = <Self::Extends as AsProps>::Defined,
         >,
     {
         let (v, rest) = p.extract_props();

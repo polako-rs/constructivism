@@ -259,14 +259,6 @@ impl Construct {
                         #lib::Field::new()
                     }
                 }
-                impl #lib::AsFlatProps for #ident {
-                    type Defined = (#lib::D<0, #ident>,);
-                    type Undefined = (#lib::U<0, #ident>,);
-                    fn as_flat_props() -> Self::Undefined {
-                        (#lib::U::<0, _>(::std::marker::PhantomData),)
-                    }
-
-                }
                 impl #lib::New<#prop_ty> for #ident {
                     fn new(from: #prop_ty) -> #ident {
                         #ident(from)
@@ -521,8 +513,6 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_props = impl_all_add_to_props(max_size);
     let defined_values = impl_all_defined_values(max_size);
-    let join_props = impl_all_join_props(max_size);
-    let as_flat_props = impl_all_as_flat_props(max_size);
     let defined = impl_all_defined(max_size);
     let extracts = impl_all_extracts(max_size);
     let mixed = impl_all_mixed(max_size);
@@ -531,8 +521,6 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
         #extract_field_impls
         #add_to_props
         #defined_values
-        #join_props
-        #as_flat_props
         #defined
         #extracts
         #as_params
@@ -567,25 +555,6 @@ fn impl_all_defined_values(max_size: u8) -> TokenStream {
         for d in 0..s+1 {
             let def = impl_defined_values(d+1, s+1);
             out = quote! { #out #def }
-        }
-    }
-    out
-}
-fn impl_all_as_flat_props(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
-    for size in 1..max_size+1 {
-        let as_flat_props = impl_as_flat_props(size);
-        out = quote! { #out #as_flat_props };
-    }
-    out
-}
-
-fn impl_all_join_props(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
-    for size in 1..max_size + 1 {
-        for shift in 1..size {
-            let join_props = impl_join_props(shift, size);
-            out = quote! { #out #join_props };
         }
     }
     out
@@ -924,101 +893,6 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
         }
     }
 }
-
-// impl<T0: AsField, T1: AsField> AsFlatProps for (T0,T1,()) {
-//     type Defined = (D<0, T0>, D<1, T1>);
-//     type Undefined = (U<0, T0>, U<1, T1>);
-//     fn as_flat_props() -> Self::Undefined {
-//         (U::<0, _>(PhantomData),U::<1, _>(PhantomData))
-//     }
-// }
-// impl<T0: AsField, T1: AsField, V: JoinProps<(U<0, T0>,U<1, T1>)>, P: AsFlatProps<Undefined = V>> AsFlatProps for (T0, T1, P)
-// {
-//     type Defined = V::DefinedResult;
-//     type Undefined = V::UndefinedResult;
-//     fn as_flat_props() -> Self::Undefined {
-//         V::join()
-//     }
-// }
-fn impl_as_flat_props(size: u8) -> TokenStream {
-    let mut gin = quote! { };
-    let mut tfor = quote! { };
-    let mut def = quote! { };
-    let mut undef = quote! { };
-    let mut vals = quote! { };
-    for i in 0..size {
-        let ti = format_ident!("T{i}");
-        gin = quote! { #gin #ti: AsField, };
-        tfor = quote! { #tfor #ti, };
-        def = quote! { #def D<#i, #ti>,};
-        undef = quote! { #undef U<#i, #ti>,};
-        vals = quote! { #vals U::<#i, _>(PhantomData), };
-    }
-    quote! { 
-        impl<#gin> AsFlatProps for (#tfor ()) {
-            type Defined = (#def);
-            type Undefined = (#undef);
-            fn as_flat_props() -> Self::Undefined {
-                (#vals)
-            }
-        }
-        impl<#gin V: JoinProps<(#undef)>, P: AsFlatProps<Undefined = V>> AsFlatProps for (#tfor P) {
-            type Defined = V::DefinedResult;
-            type Undefined = V::UndefinedResult;
-            fn as_flat_props() -> Self::Undefined {
-                V::join()
-            }
-        }
-    }
-}
-// size = 3, shift = 2
-// //   #gin                   #l               #r
-// impl<T0, T1, T2> JoinProps<(U<0, T0>,)> for (U<0, T1>, U<1, T2>) {
-// //                          #udef
-//     type UndefinedResult = (U<0, T0>, U<1, T1>, U<2, T2>);
-// //                        #def
-//     type DefinedResult = (D<0, T0>, D<1, T1>, D<2, T2>);
-//     fn join() -> Self::UndefinedResult {
-// //       #res
-//         (U::<0, _>(PhantomData), U::<1, _>(PhantomData), U::<2, _>(PhantomData))    
-//     }
-// }
-fn impl_join_props(shift: u8, size: u8) -> TokenStream {
-    let mut gin = quote! { };
-    let mut l = quote! { };
-    let mut r = quote! { };
-    let mut def = quote! { };
-    let mut undef = quote! { };
-    let mut res = quote! { };
-    for i in 0..size {
-        let ti = format_ident!("T{i}");
-        if i < size - shift {
-            l = quote! { #l U<#i, #ti>, };
-        }
-        if i < shift {
-            let ir = i + (size - shift);
-            let tr = format_ident!("T{ir}");
-            r = quote! { #r U<#i, #tr>, };
-        }
-        gin = quote! { #gin #ti, };
-        res = quote! { #res U::<#i, _>(PhantomData), };
-        def = quote! { #def D<#i, #ti>, };
-        undef = quote! { #undef U<#i, #ti>, };
-    }
-
-    let dbg0 = format_ident!("join_props_shift_{shift}_size_{size}");
-    quote! {
-        fn #dbg0() { }
-        impl<#gin> JoinProps<(#l)> for (#r) {
-            type DefinedResult = (#def);
-            type UndefinedResult = (#undef);
-            fn join() -> Self::UndefinedResult {
-                (#res)
-            }
-        }
-    }
-}
-
 
 // impl<T0: DefinedValue, T1: DefinedValue, T2: DefinedValue> Props<(T0, T1, T2)> {
 //     pub fn defined(self) -> Props<(D<0, T0::Value>, D<1, T1::Value>, D<2, T2::Value>)> {

@@ -1,6 +1,4 @@
-use constructivist_core::{new, Join, AsFlatProps};
 use constructivist_macro_support::{Construct, constructable};
-use constructivist_core::traits::*;
 
 #[allow(dead_code)]
 #[derive(Construct)]
@@ -32,21 +30,5 @@ constructable! { Slider extends Div (
 
 
 fn main() {
-    let x = <Join<(slider_construct::min, slider_construct::max, slider_construct::val), ()>>::as_props();
-    let y = <Join<(div_construct::width, div_construct::height), ()>>::as_props();
-    let a = <(div_construct::width, div_construct::height) as AsFlatProps>::as_flat_props();
-    let b = <(slider_construct::min, slider_construct::max, slider_construct::val) as AsFlatProps>::as_flat_props();
-    let z = <Join<
-        (slider_construct::min, slider_construct::max, slider_construct::val),
-        (div_construct::width, div_construct::height)
-    >>::as_flat_props();
     
-
-    let _ = new!(Slider {
-        width: 23.,
-        max: 10.,
-        val: 5.,
-        // uncomment next line to get 'expected function, found `PropRedefined<val>`'
-        // val: 5.,
-    });
 }
