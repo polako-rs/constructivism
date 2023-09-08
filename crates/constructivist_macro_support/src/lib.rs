@@ -34,7 +34,7 @@ fn lib() -> TokenStream {
 #[proc_macro_derive(Construct, attributes(extends, mixin, required, default))]
 pub fn derive_construct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let constructable = match Construct::from_derive(input, ConstructMode::object()) {
+    let constructable = match Constructable::from_derive(input, ConstructMode::object()) {
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c
     };
@@ -43,7 +43,7 @@ pub fn derive_construct(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 #[proc_macro_derive(Mixin, attributes(required, default))]
 pub fn derive_mixin(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let constructable = match Construct::from_derive(input, ConstructMode::mixin()) {
+    let constructable = match Constructable::from_derive(input, ConstructMode::mixin()) {
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c
     };
@@ -99,26 +99,16 @@ macro_rules! throw {
 }
 
 enum ConstructMode {
-    Pure,
     Mixin,
-    Object { extends: Option<Type>, mixins: Vec<Type> },
+    Construct { extends: Option<Type>, mixins: Vec<Type> },
 }
 
 impl ConstructMode {
-    fn pure() -> Self {
-        ConstructMode::Pure
-    }
     fn mixin() -> Self {
         ConstructMode::Mixin
     }
     fn object() -> Self {
-        ConstructMode::Object { extends: None, mixins: vec![] }
-    }
-    fn is_pure(&self) -> bool {
-        match self {
-            ConstructMode::Pure => true,
-            _ => false
-        }
+        ConstructMode::Construct { extends: None, mixins: vec![] }
     }
     fn is_mixin(&self) -> bool {
         match self {
@@ -128,31 +118,31 @@ impl ConstructMode {
     }
     fn is_object(&self) -> bool {
         match self {
-            ConstructMode::Object { .. } => true,
+            ConstructMode::Construct { .. } => true,
             _ => false
         }
     }
     fn set_extends(&mut self, ty: Type) -> Result<(), syn::Error> {
         match self {
-            ConstructMode::Object { extends, .. } => {
+            ConstructMode::Construct { extends, .. } => {
                 *extends = Some(ty);
                 Ok(())
             },
             _ => {
-                throw!(ty, "set_extends(..) available only for ConstructMode::Object");
+                throw!(ty, "set_extends(..) available only for ConstructMode::Construct");
             }
 
         }
     }
     fn push_mixin(&mut self, ty: Type) -> Result<(), syn::Error> {
         match self {
-            ConstructMode::Object { mixins, .. } => {
+            ConstructMode::Construct { mixins, .. } => {
                 // throw!(ty, format!("adding mixin for {:?}", ty.to_token_stream()));
                 mixins.push(ty);
                 Ok(())
             },
             _ => {
-                throw!(ty, "push_mixin(..) available only for ConstructMode::Object");
+                throw!(ty, "push_mixin(..) available only for ConstructMode::Construct");
             }
 
         }
@@ -160,20 +150,15 @@ impl ConstructMode {
     }
 }
 
-struct Construct {
+struct Constructable {
     ty: Type,
     props: Vec<Prop>,
     body: Option<Expr>,
     mode: ConstructMode,
-    // extends: Option<Type>,
 }
 
-struct Object {
-    construct: Construct,
-    extends: Option<Type>
-}
 
-impl Parse for Construct {
+impl Parse for Constructable {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let ty = input.parse()?;
         let mut extends = None;
@@ -183,21 +168,21 @@ impl Parse for Construct {
             }
             extends = Some(input.parse()?)
         }
-        let mode = ConstructMode::Object { extends, mixins: vec![] };
+        let mode = ConstructMode::Construct { extends, mixins: vec![] };
         let content;
         parenthesized!(content in input);
         let props = content.parse_terminated(Prop::parse, Token![,])?;
         let props = props.into_iter().collect();
         let body = Some(input.parse()?);
-        Ok(Construct { ty, props, body, mode })
+        Ok(Constructable { ty, props, body, mode })
     }
 }
 
-impl Construct {
+impl Constructable {
     fn build(&self, lib: TokenStream) -> TokenStream {
         let ty = &self.ty;
         let Some(type_ident) = ty.as_ident() else {
-            return quote!(compile_error!("Can't implement Construct for {}", stringify!(#ty)));
+            return quote!(compile_error!("Can't implement ConstructItem for {}", stringify!(#ty)));
         };
         let mod_ident = format_ident!(                      // slider_construct
             "{}_construct",
@@ -274,7 +259,7 @@ impl Construct {
             }).unwrap()
         };
 
-        let object = if let ConstructMode::Object { extends, mixins } = &self.mode {
+        let object = if let ConstructMode::Construct { extends, mixins } = &self.mode {
             let extends = if let Some(extends) = extends {
                 quote! { #extends }
             } else {
@@ -282,10 +267,10 @@ impl Construct {
             };
 
             let mut mixed_props = quote! { };
-            let mut expanded_props = quote! { <Self::Extends as #lib::Object>::ExpandedProps };
-            let mut hierarchy = quote! { <Self::Extends as #lib::Object>::Hierarchy };
+            let mut expanded_props = quote! { <Self::Extends as #lib::Construct>::ExpandedProps };
+            let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
             let mut deconstruct = quote! { };
-            let mut construct = quote! { <Self::Extends as #lib::Object>::build(rest) };
+            let mut construct = quote! { <Self::Extends as #lib::Construct>::build(rest) };
             for mixin in mixins.iter().rev() {
                 
                 let mixin_params = if let Some(ident) = mixin.as_ident() {
@@ -294,13 +279,13 @@ impl Construct {
                     return quote!(compile_error!("Can't construct params ident"));
                 };
                 if mixed_props.is_empty() {
-                    mixed_props = quote! { <#mixin as Construct>::Props, };
+                    mixed_props = quote! { <#mixin as ConstructItem>::Props, };
                     deconstruct = quote! { #mixin_params };
                 } else {
-                    mixed_props = quote! {  #lib::Mix<<#mixin as Construct>::Props, #mixed_props> };
+                    mixed_props = quote! {  #lib::Mix<<#mixin as ConstructItem>::Props, #mixed_props> };
                     deconstruct = quote! { (#mixin_params, #deconstruct) };
                 }
-                expanded_props = quote! { #lib::Mix<<#mixin as Construct>::Props, #expanded_props> };
+                expanded_props = quote! { #lib::Mix<<#mixin as ConstructItem>::Props, #expanded_props> };
                 construct = quote! { ( #mixin::construct(#mixin_params), #construct ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
@@ -316,34 +301,34 @@ impl Construct {
             };
             let construct = quote! {
                 (
-                    <Self as #lib::Construct>::construct(self_params),
+                    <Self as #lib::ConstructItem>::construct(self_params),
                     #construct
                 )
             };
             
             quote! {
-                impl #lib::Object for #type_ident {
+                impl #lib::Construct for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
                     type Methods = #mod_ident::Methods;
                     type MixedProps = (#mixed_props);
-                    // type Hierarchy =  (Self, <Self::Extends as #lib::Object>::Hierarchy);
+                    // type Hierarchy =  (Self, <Self::Extends as #lib::Construct>::Hierarchy);
                     type Hierarchy = (Self, #hierarchy);
-                    // type ExpandedProps = #lib::Mix<(#type_props), <Self::Extends as #lib::Object>::ExpandedProps>;
+                    // type ExpandedProps = #lib::Mix<(#type_props), <Self::Extends as #lib::Construct>::ExpandedProps>;
                     type ExpandedProps = #lib::Mix<(#type_props), #expanded_props>;
                     
                     
                     fn build<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
                         I, Self::MixedProps,
                         Value = <Self::MixedProps as #lib::Extractable>::Output,
-                        Rest = <<<Self::Extends as #lib::Object>::ExpandedProps as #lib::Extractable>::Input as #lib::AsParams>::Defined
+                        Rest = <<<Self::Extends as #lib::Construct>::ExpandedProps as #lib::Extractable>::Input as #lib::AsParams>::Defined
                     > {
                         let (#deconstruct, rest) = params.extract_params();
                         #construct
                         // let (args, rest) = params.extract_params();
                         // (
-                        //     <Self as #lib::Construct>::construct(args),
-                        //     <Self::Extends as #lib::Object>::build(rest)
+                        //     <Self as #lib::ConstructItem>::construct(args),
+                        //     <Self::Extends as #lib::Construct>::build(rest)
                         // )
                     }
                 }
@@ -362,14 +347,14 @@ impl Construct {
             quote! { }
         };
         let decls = match &self.mode {
-            ConstructMode::Object { extends, mixins } => {
+            ConstructMode::Construct { extends, mixins } => {
                 let extends = if let Some(extends) = extends {
                     quote! { #extends }
                 } else {
                     quote! { () }
                 };
-                let mut deref_fields = quote! { <#extends as #lib::Object>::Fields };
-                let mut deref_methods = quote! { <#extends as #lib::Object>::Methods };
+                let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
+                let mut deref_methods = quote! { <#extends as #lib::Construct>::Methods };
                 for mixin in mixins.iter() {
                     // throw!(mixin, "got mixin");
                     deref_fields = quote! { <#mixin as #lib::Mixin>::Fields<#deref_fields> };
@@ -453,7 +438,7 @@ impl Construct {
                 #impls
             }
             impl #lib::NonUnit for #type_ident { }
-            impl #lib::Construct for #type_ident {
+            impl #lib::ConstructItem for #type_ident {
                 type Props = ( #type_props );
                 fn construct(props: Self::Props) -> Self {
                     let (#type_props_deconstruct) = props;
@@ -475,14 +460,14 @@ impl Construct {
         let ty = syn::parse2(quote!{ #ident }).unwrap();
         if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extends")) {
             if !mode.is_object() {
-                throw!(extends, "#[extends(..) only supported by #[derive(Object)].");
+                throw!(extends, "#[extends(..) only supported by #[derive(Construct)].");
             }
             mode.set_extends(extends.parse_args()?)?
         }
         if let Some(mixin) = input.attrs.iter().find(|a| a.path().is_ident("mixin")) {
             // throw!(mixin, "found mixin");
             if !mode.is_object() {
-                throw!(mixin, "#[mixin(..) only supported by #[derive(Object)].");
+                throw!(mixin, "#[mixin(..) only supported by #[derive(Construct)].");
             }
             // mixin.meta.
             mixin.parse_nested_meta(|meta| {
@@ -516,7 +501,7 @@ impl Construct {
             props.push(Prop { ty, name, default });
         }
         let body = None;
-        Ok(Construct {
+        Ok(Constructable {
             ty, props, body, mode,
         })
     }
@@ -525,7 +510,7 @@ impl Construct {
 
 #[proc_macro]
 pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as Construct);
+    let input = parse_macro_input!(input as Constructable);
     proc_macro::TokenStream::from(input.build(lib()))
 }
 

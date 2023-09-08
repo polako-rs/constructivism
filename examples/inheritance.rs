@@ -1,8 +1,7 @@
 use constructivist_core::new;
-use constructivist_core::Construct;
+use constructivist_core::ConstructItem;
 use constructivist_core::Methods;
-use constructivist_core::Mixin;
-use constructivist_core::Object;
+use constructivist_core::Construct;
 use constructivist_core::Singleton;
 use constructivist_core::D;
 use constructivist_macro_support::Construct;
@@ -12,7 +11,7 @@ use std::marker::PhantomData;
 
 macro_rules! methods {
     ($t:ty) => {
-        <$t as Object>::Methods::instance()
+        <$t as Construct>::Methods::instance()
     };
 }
 
@@ -30,7 +29,7 @@ impl<T: Methods<Div>> AddChildren for T {
 
 pub fn main() {
     // direct use:
-    // let border_methods = <Border as Object>::Methods::instance();
+    // let border_methods = <Border as Construct>::Methods::instance();
     // border_methods.add_children(1, vec![23]);
 
     // with custom macro:
@@ -42,15 +41,15 @@ pub fn main() {
     });
     // let _ = {
     //     use constructivist_core::traits::*;
-    //     let fields = <<Div as constructivist_core::Object>::Fields as constructivist_core::Singleton>::instance();
-    //     let props = <<Div as constructivist_core::Object>::ExpandedProps as constructivist_core::Extractable>::as_params();
+    //     let fields = <<Div as constructivist_core::Construct>::Fields as constructivist_core::Singleton>::instance();
+    //     let props = <<Div as constructivist_core::Construct>::ExpandedProps as constructivist_core::Extractable>::as_params();
     //     let prop = &fields.width;
     //     let field = prop.field();
     //     let value = props.field(&field).define(prop.value(25.));
     //     let props = props + value;
     //     props.validate(&prop)();
     //     let defined_props = props.defined();
-    //     <Div as constructivist_core::Object>::build(defined_props)
+    //     <Div as constructivist_core::Construct>::build(defined_props)
     // };
     // methods!(Border).add_children(1, vec![23]);
     // let _this = new!(Border {
