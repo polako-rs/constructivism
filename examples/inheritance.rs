@@ -35,22 +35,23 @@ pub fn main() {
 
     // with custom macro:
     methods!(Div).add_children(1, vec![23]);
-    // let _this = new!(Div {
-    //     width: 25.,
-    //     // visible: false,
-    // });
-    let _ = {
-        use constructivist_core::traits::*;
-        let fields = <<Div as constructivist_core::Object>::Fields as constructivist_core::Singleton>::instance();
-        let props = <<Div as constructivist_core::Object>::ExpandedProps as constructivist_core::Extractable>::as_params();
-        let prop = &fields.width;
-        let field = prop.field();
-        let value = props.field(&field).define(prop.value(25.));
-        let props = props + value;
-        props.validate(&prop)();
-        let defined_props = props.defined();
-        <Div as constructivist_core::Object>::build(defined_props)
-    };
+    let _this = new!(Border {
+        width: 25.,
+        visible: true,
+        // visible: false,
+    });
+    // let _ = {
+    //     use constructivist_core::traits::*;
+    //     let fields = <<Div as constructivist_core::Object>::Fields as constructivist_core::Singleton>::instance();
+    //     let props = <<Div as constructivist_core::Object>::ExpandedProps as constructivist_core::Extractable>::as_params();
+    //     let prop = &fields.width;
+    //     let field = prop.field();
+    //     let value = props.field(&field).define(prop.value(25.));
+    //     let props = props + value;
+    //     props.validate(&prop)();
+    //     let defined_props = props.defined();
+    //     <Div as constructivist_core::Object>::build(defined_props)
+    // };
     // methods!(Border).add_children(1, vec![23]);
     // let _this = new!(Border {
     //     width: 25.,
@@ -69,6 +70,13 @@ pub struct Visibility {
 }
 
 #[allow(dead_code)]
+#[derive(Mixin)]
+pub struct Input {
+    disabled: bool,
+}
+
+
+#[allow(dead_code)]
 #[derive(Construct)]
 pub struct Node {
     width: f32,
@@ -78,18 +86,18 @@ pub struct Node {
 #[allow(dead_code)]
 #[derive(Construct)]
 #[extends(Node)]
-#[mixin(Visibility)]
+#[mixin(Visibility, Input)]
 pub struct Div {
     color: f32,
     alpha: f32,
 }
 
-// #[allow(dead_code)]
-// // #[derive(Construct)]
-// // #[extends(Div)]
-// pub struct Border {
-//     border_width: f32,
-// }
+#[allow(dead_code)]
+#[derive(Construct)]
+#[extends(Div)]
+pub struct Border {
+    border_width: f32,
+}
 
 
 // #[allow(dead_code)]

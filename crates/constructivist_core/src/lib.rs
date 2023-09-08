@@ -34,8 +34,8 @@ pub trait Object: Construct {
     
     
     fn build<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
-        I, Self::Props,
-        Value = <Self::Props as Extractable>::Output,
+        I, Self::MixedProps,
+        Value = <Self::MixedProps as Extractable>::Output,
         Rest = <<<Self::Extends as Object>::ExpandedProps as Extractable>::Input as AsParams>::Defined
     >;
 }
@@ -128,8 +128,8 @@ impl Object for () {
     type ExpandedProps = ();
     
     fn build<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
-        I, Self::Props,
-        Value = <Self::Props as Extractable>::Output,
+        I, Self::MixedProps,
+        Value = <Self::MixedProps as Extractable>::Output,
         Rest = <<<Self::Extends as Object>::ExpandedProps as Extractable>::Input as AsParams>::Defined
     > {
         ()
