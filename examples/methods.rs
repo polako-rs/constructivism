@@ -14,7 +14,7 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn spawn_child(world: &mut World, this: Entity) -> Entity {
+    pub fn spawn_child(_world: &mut World, this: Entity) -> Entity {
         Entity(this.0 + 1)
     }
 

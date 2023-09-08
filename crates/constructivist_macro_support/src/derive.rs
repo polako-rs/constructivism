@@ -1,0 +1,514 @@
+use proc_macro2::TokenStream;
+use quote::{quote, format_ident, ToTokens};
+use syn::{Type, parse::Parse, Token, bracketed, Expr, Ident, spanned::Spanned, parenthesized, DeriveInput, Data};
+
+use crate::synext::TypeExt;
+
+macro_rules! throw {
+    ($loc:expr, $msg:expr) => {
+        return Err(syn::Error::new($loc.span(), $msg));
+    };
+}
+
+pub fn lib() -> TokenStream {
+    let lib = quote! { ::constructivist_core };
+    let Some(manifest_path) = std::env::var_os("CARGO_MANIFEST_DIR")
+        .map(std::path::PathBuf::from)
+        .map(|mut path| { path.push("Cargo.toml"); path })
+        else { return lib };
+    let Ok(manifest) = std::fs::read_to_string(&manifest_path) else {
+        return lib
+    };
+    let Ok(manifest) = toml::from_str::<toml::map::Map<String, toml::Value>>(&manifest) else {
+        return lib
+    };
+
+    let Some(pkg) = manifest.get("package") else { return lib };
+    let Some(pkg) = pkg.as_table() else { return lib };
+    let Some(pkg) = pkg.get("name") else { return lib };
+    let Some(pkg) = pkg.as_str() else { return lib };
+    if pkg.trim() == "constructivist" {
+        quote! { ::constructivist_core }
+    } else {
+        lib
+    }
+}
+
+enum ParamType {
+    Single(Type),
+    Union(Vec<Param>),
+}
+impl Parse for ParamType {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        if input.peek(syn::token::Bracket) {
+            let content;
+            bracketed!(content in input);
+            let params = content.parse_terminated(Param::parse, Token![,])?;
+            Ok(ParamType::Union(params.into_iter().collect()))
+        } else {
+            Ok(ParamType::Single(input.parse()?))
+        }
+    }
+}
+
+enum ParamDefault {
+    None,
+    Default,
+    Custom(Expr),
+}
+struct Param {
+    name: Ident,
+    ty: ParamType,
+    default: ParamDefault,
+}
+
+impl Parse for Param {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let name = input.parse()?;
+        input.parse::<Token![:]>()?;
+        let ty = input.parse()?;
+        let mut default = ParamDefault::None;
+        if input.peek(Token![=]) {
+            input.parse::<Token![=]>()?;
+            default = ParamDefault::Custom(input.parse()?);
+        }
+        Ok(Param { name, ty, default })
+    }
+}
+
+
+pub enum ConstructMode {
+    Mixin,
+    Construct {
+        extends: Option<Type>,
+        mixins: Vec<Type>,
+    },
+}
+
+impl ConstructMode {
+    pub fn mixin() -> Self {
+        ConstructMode::Mixin
+    }
+    pub fn object() -> Self {
+        ConstructMode::Construct {
+            extends: None,
+            mixins: vec![],
+        }
+    }
+    pub fn is_mixin(&self) -> bool {
+        match self {
+            ConstructMode::Mixin => true,
+            _ => false,
+        }
+    }
+    pub fn is_object(&self) -> bool {
+        match self {
+            ConstructMode::Construct { .. } => true,
+            _ => false,
+        }
+    }
+    fn set_extends(&mut self, ty: Type) -> Result<(), syn::Error> {
+        match self {
+            ConstructMode::Construct { extends, .. } => {
+                *extends = Some(ty);
+                Ok(())
+            }
+            _ => {
+                throw!(
+                    ty,
+                    "set_extends(..) available only for ConstructMode::Construct"
+                );
+            }
+        }
+    }
+    fn push_mixin(&mut self, ty: Type) -> Result<(), syn::Error> {
+        match self {
+            ConstructMode::Construct { mixins, .. } => {
+                // throw!(ty, format!("adding mixin for {:?}", ty.to_token_stream()));
+                mixins.push(ty);
+                Ok(())
+            }
+            _ => {
+                throw!(
+                    ty,
+                    "push_mixin(..) available only for ConstructMode::Construct"
+                );
+            }
+        }
+    }
+}
+
+pub struct Constructable {
+    ty: Type,
+    params: Vec<Param>,
+    body: Option<Expr>,
+    mode: ConstructMode,
+}
+
+impl Parse for Constructable {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ty = input.parse()?;
+        let mut extends = None;
+        if let Ok(ident) = input.parse::<Ident>() {
+            if &ident.to_string() != "extends" {
+                return Err(syn::Error::new(ident.span(), "Expected `extends` ident"));
+            }
+            extends = Some(input.parse()?)
+        }
+        let mode = ConstructMode::Construct {
+            extends,
+            mixins: vec![],
+        };
+        let content;
+        parenthesized!(content in input);
+        let params = content.parse_terminated(Param::parse, Token![,])?;
+        let params = params.into_iter().collect();
+        let body = Some(input.parse()?);
+        Ok(Constructable {
+            ty,
+            params,
+            body,
+            mode,
+        })
+    }
+}
+
+impl Constructable {
+    pub fn build(&self, lib: TokenStream) -> TokenStream {
+        let ty = &self.ty;
+        let Some(type_ident) = ty.as_ident() else {
+            return quote!(compile_error!("Can't implement ConstructItem for {}", stringify!(#ty)));
+        };
+        let mod_ident = format_ident!(
+            // slider_construct
+            "{}_construct",
+            type_ident.to_string().to_lowercase()
+        );
+        let mut type_params = quote! {}; // slider_construct::min, slider_construct::max, slider_construct::val,
+        let mut type_params_deconstruct = quote! {}; // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
+        let mut param_values = quote! {}; // min, max, val,
+        let mut impls = quote! {};
+        let mut fields = quote! {};
+        let mut fields_new = quote! {};
+        for param in self.params.iter() {
+            let ParamType::Single(param_ty) = &param.ty else {
+                return quote!(compile_error!("Union params not supported yet."))
+            };
+            let ident = &param.name;
+            param_values = quote! { #param_values #ident, };
+            type_params = quote! { #type_params #mod_ident::#ident, };
+            type_params_deconstruct =
+                quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
+            fields = quote! { #fields
+                #[allow(unused_variables)]
+                pub #ident: #lib::Param<#ident, #param_ty>,
+            };
+            fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
+            let default = match &param.default {
+                ParamDefault::Custom(default) => {
+                    quote! {
+                        impl Default for #ident {
+                            fn default() -> Self {
+                                #ident(#default)
+                            }
+                        }
+                    }
+                }
+                ParamDefault::Default => {
+                    quote! {
+                        impl Default for #ident {
+                            fn default() -> Self {
+                                #ident(Default::default())
+                            }
+                        }
+                    }
+                }
+                ParamDefault::None => {
+                    quote! {}
+                }
+            };
+            impls = quote! { #impls
+                #default
+                #[allow(non_camel_case_types)]
+                pub struct #ident(pub #param_ty);
+                impl<T: Into<#param_ty>> From<T> for #ident {
+                    fn from(__value__: T) -> Self {
+                        #ident(__value__.into())
+                    }
+                }
+                impl #lib::AsField for #ident {
+                    fn as_field() -> #lib::Field<Self> {
+                        #lib::Field::new()
+                    }
+                }
+                impl #lib::New<#param_ty> for #ident {
+                    fn new(from: #param_ty) -> #ident {
+                        #ident(from)
+                    }
+                }
+            };
+        }
+        let construct = if let Some(expr) = &self.body {
+            expr.clone()
+        } else {
+            syn::parse2(quote! {
+                Self { #param_values }
+            })
+            .unwrap()
+        };
+
+        let object = if let ConstructMode::Construct { extends, mixins } = &self.mode {
+            let extends = if let Some(extends) = extends {
+                quote! { #extends }
+            } else {
+                quote! { () }
+            };
+
+            let mut mixed_params = quote! {};
+            let mut expanded_params = quote! { <Self::Extends as #lib::Construct>::ExpandedParams };
+            let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
+            let mut deconstruct = quote! {};
+            let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
+            for mixin in mixins.iter().rev() {
+                let mixin_params = if let Some(ident) = mixin.as_ident() {
+                    format_ident!("{}_params", ident.to_string().to_lowercase())
+                } else {
+                    return quote!(compile_error!("Can't construct params ident"));
+                };
+                if mixed_params.is_empty() {
+                    mixed_params = quote! { <#mixin as ConstructItem>::Params, };
+                    deconstruct = quote! { #mixin_params };
+                } else {
+                    mixed_params =
+                        quote! {  #lib::Mix<<#mixin as ConstructItem>::Params, #mixed_params> };
+                    deconstruct = quote! { (#mixin_params, #deconstruct) };
+                }
+                expanded_params =
+                    quote! { #lib::Mix<<#mixin as ConstructItem>::Params, #expanded_params> };
+                construct = quote! { ( #mixin::construct_item(#mixin_params), #construct ) };
+                hierarchy = quote! { (#mixin, #hierarchy) };
+            }
+            let mixed_params = if mixed_params.is_empty() {
+                quote! { (#type_params) }
+            } else {
+                quote! { #lib::Mix<(#type_params), #mixed_params> }
+            };
+            let deconstruct = if deconstruct.is_empty() {
+                quote! { self_params }
+            } else {
+                quote! { (self_params, #deconstruct) }
+            };
+            let construct = quote! {
+                (
+                    <Self as #lib::ConstructItem>::construct_item(self_params),
+                    #construct
+                )
+            };
+
+            quote! {
+                impl #lib::Construct for #type_ident {
+                    type Extends = #extends;
+                    type Fields = #mod_ident::Fields;
+                    type Methods = #mod_ident::Methods;
+                    type MixedParams = (#mixed_params);
+                    // type Hierarchy =  (Self, <Self::Extends as #lib::Construct>::Hierarchy);
+                    type Hierarchy = (Self, #hierarchy);
+                    // type ExpandedParams = #lib::Mix<(#type_params), <Self::Extends as #lib::Construct>::ExpandedParams>;
+                    type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
+
+
+                    fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
+                        I, Self::MixedParams,
+                        Value = <Self::MixedParams as #lib::Extractable>::Output,
+                        Rest = <<<Self::Extends as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined
+                    > {
+                        let (#deconstruct, rest) = params.extract_params();
+                        #construct
+                        // let (args, rest) = params.extract_params();
+                        // (
+                        //     <Self as #lib::ConstructItem>::construct_item(args),
+                        //     <Self::Extends as #lib::Construct>::construct(rest)
+                        // )
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
+        let mixin = if self.mode.is_mixin() {
+            quote! {
+                impl #lib::Mixin for #type_ident {
+                    type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
+                    type Methods<T: #lib::Singleton + 'static> = #mod_ident::Methods<T>;
+                }
+            }
+        } else {
+            quote! {}
+        };
+        let decls = match &self.mode {
+            ConstructMode::Construct { extends, mixins } => {
+                let extends = if let Some(extends) = extends {
+                    quote! { #extends }
+                } else {
+                    quote! { () }
+                };
+                let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
+                let mut deref_methods = quote! { <#extends as #lib::Construct>::Methods };
+                for mixin in mixins.iter() {
+                    // throw!(mixin, "got mixin");
+                    deref_fields = quote! { <#mixin as #lib::Mixin>::Fields<#deref_fields> };
+                    deref_methods = quote! { <#mixin as #lib::Mixin>::Methods<#deref_methods> };
+                }
+
+                quote! {
+                    pub struct Fields {
+                        #fields
+                    }
+
+                    pub struct Methods;
+                    impl #lib::Singleton for Fields {
+                        fn instance() -> &'static Self {
+                            &Fields {
+                                #fields_new
+                            }
+                        }
+                    }
+                    impl #lib::Singleton for Methods {
+                        fn instance() -> &'static Self {
+                            &Methods
+                        }
+                    }
+                    impl ::std::ops::Deref for Fields {
+                        type Target = #deref_fields;
+                        fn deref(&self) -> &Self::Target {
+                            <#deref_fields as #lib::Singleton>::instance()
+                        }
+                    }
+                    impl #lib::Methods<#ty> for Methods { }
+                    impl ::std::ops::Deref for Methods {
+                        type Target = #deref_methods;
+                        fn deref(&self) -> &Self::Target {
+                            <#deref_methods as #lib::Singleton>::instance()
+                        }
+                    }
+
+                }
+            }
+            ConstructMode::Mixin => quote! {
+                pub struct Fields<T: #lib::Singleton> {
+                    #fields
+                    __base__: ::std::marker::PhantomData<T>,
+                }
+                pub struct Methods<T: #lib::Singleton>(
+                    ::std::marker::PhantomData<T>
+                );
+                impl<T: #lib::Singleton> #lib::Singleton for Fields<T> {
+                    fn instance() -> &'static Self {
+                        &Fields {
+                            #fields_new
+                            __base__: ::std::marker::PhantomData,
+                        }
+                    }
+                }
+                impl<T: #lib::Singleton> #lib::Singleton for Methods<T> {
+                    fn instance() -> &'static Self {
+                        &Methods(::std::marker::PhantomData)
+                    }
+                }
+                impl<T: #lib::Singleton + 'static> std::ops::Deref for Fields<T> {
+                    type Target = T;
+                    fn deref(&self) -> &Self::Target {
+                        T::instance()
+                    }
+                }
+                impl<T: #lib::Singleton + 'static> std::ops::Deref for Methods<T> {
+                    type Target = T;
+                    fn deref(&self) -> &Self::Target {
+                        T::instance()
+                    }
+                }
+            },
+        };
+        quote! {
+            mod #mod_ident {
+                use super::*;
+                #decls
+                #impls
+            }
+            impl #lib::ConstructItem for #type_ident {
+                type Params = ( #type_params );
+                fn construct_item(params: Self::Params) -> Self {
+                    let (#type_params_deconstruct) = params;
+                    #construct
+                }
+            }
+            #object
+            #mixin
+
+        }
+    }
+
+    pub fn from_derive(input: DeriveInput, mut mode: ConstructMode) -> Result<Self, syn::Error> {
+        if input.generics.params.len() > 0 {
+            throw!(
+                input.ident,
+                "#[derive(Construct)] doesn't support generics yet."
+            );
+        }
+        let ident = input.ident.clone(); // Slider
+        let ty = syn::parse2(quote! { #ident }).unwrap();
+        if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extends")) {
+            if !mode.is_object() {
+                throw!(
+                    extends,
+                    "#[extends(..) only supported by #[derive(Construct)]."
+                );
+            }
+            mode.set_extends(extends.parse_args()?)?
+        }
+        if let Some(mixin) = input.attrs.iter().find(|a| a.path().is_ident("mixin")) {
+            // throw!(mixin, "found mixin");
+            if !mode.is_object() {
+                throw!(mixin, "#[mixin(..) only supported by #[derive(Construct)].");
+            }
+            // mixin.meta.
+            mixin.parse_nested_meta(|meta| {
+                mode.push_mixin(syn::parse2(meta.path.into_token_stream())?)
+                // for mixin in meta.input.parse_terminated(Type::parse, Token![,])?.iter() {
+                //     throw!(mixin, "adding mixin");
+                // }
+                // Ok(())
+            })?;
+        }
+
+        let Data::Struct(input) = input.data else {
+            throw!(input.ident, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
+        };
+        let mut params = vec![];
+        for field in input.fields.iter() {
+            let ty = ParamType::Single(field.ty.clone());
+            let Some(name) = field.ident.clone() else {
+                throw!(field, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
+            };
+            let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
+                ParamDefault::None
+            } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default"))
+            {
+                let Ok(expr) = default.parse_args::<Expr>() else {
+                    throw!(name, "Invalid expression for #[default(expr)].");
+                };
+                ParamDefault::Custom(expr)
+            } else {
+                ParamDefault::Default
+            };
+            params.push(Param { ty, name, default });
+        }
+        let body = None;
+        Ok(Constructable {
+            ty,
+            params,
+            body,
+            mode,
+        })
+    }
+}
