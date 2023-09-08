@@ -1,6 +1,5 @@
 use constructivist_core::new;
 use constructivist_core::Construct;
-use constructivist_core::DefinedValues;
 use constructivist_core::Methods;
 use constructivist_core::Mixin;
 use constructivist_core::Object;

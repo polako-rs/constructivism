@@ -10,7 +10,6 @@ pub mod traits {
     pub use super::AsField;
     pub use super::MoveTo;
     pub use super::DefinedValue;
-    pub use super::DefinedValues;
     pub use super::Flattern;
     pub use super::NonUnit;
     pub use super::Strip;
@@ -289,10 +288,6 @@ pub trait MoveTo<const I: u8> {
     fn move_to(self) -> Self::Target;
 }
 
-pub trait DefinedValues<T> {
-    type Output;
-    fn extract_values(self) -> (T, Self::Output);
-}
 
 pub trait DefinedValue {
     type Value;
@@ -356,18 +351,6 @@ impl<const I: u8, T> DefinedValue for D<I, T> {
 impl Props<()> {
     pub fn defined(self) -> Self {
         self
-    }
-}
-impl<T> DefinedValues<()> for Props<T> {
-    type Output = Self;
-    fn extract_values(self) -> ((), Self::Output) {
-        ((), self)
-    }
-}
-impl DefinedValues<()> for () {
-    type Output = Props<()>;
-    fn extract_values(self) -> ((), Self::Output) {
-        ((), Props(()))
     }
 }
 

@@ -512,7 +512,6 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     let max_size = 6;
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_props = impl_all_add_to_props(max_size);
-    let defined_values = impl_all_defined_values(max_size);
     let defined = impl_all_defined(max_size);
     let extracts = impl_all_extracts(max_size);
     let mixed = impl_all_mixed(max_size);
@@ -520,7 +519,6 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     proc_macro::TokenStream::from(quote! {
         #extract_field_impls
         #add_to_props
-        #defined_values
         #defined
         #extracts
         #as_params
@@ -545,16 +543,6 @@ fn impl_all_add_to_props(max_size: u8) -> TokenStream {
         for idx in 0..size {
             let impl_add_to_props = impl_add_to_props(idx, size);
             out = quote! { #out #impl_add_to_props }
-        }
-    }
-    out
-}
-fn impl_all_defined_values(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
-    for s in 0..max_size {
-        for d in 0..s+1 {
-            let def = impl_defined_values(d+1, s+1);
-            out = quote! { #out #def }
         }
     }
     out
@@ -731,75 +719,6 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
     }
 }
 
-/// Implement single DefinedValues. `impl_defined_values(2, 4)` will generate
-/// ```ignore
-/// impl<P0, P1, T0, T1, T2, T3> DefinedValues<(P0, P1, ())> for Props<(T0, T1, T2, T3)>
-/// where
-///     P0: AsField,
-///     P1: AsField,
-///     T0: DefinedValue<Value = P0>,
-///     T1: DefinedValue<Value = P1>,
-///     T2: MoveTo<0>,
-///     T3: MoveTo<1>,
-/// {
-///     type Output = Props<(T2::Target, T3::Target)>;
-///     fn extract_values(self) -> ((P0, P1, ()), Self::Output) {
-///         let (p0, p1, p2, p3) = self.0;
-///         ((
-///             p0.extract_value(),
-///             p1.extract_value(),
-///             (),
-///         ), Props((
-///             p2.move_to(),
-///             p3.move_to(),
-///         )))
-///     }
-/// }
-/// ```
-fn impl_defined_values(defined: u8, size: u8) -> TokenStream {
-    let mut gin = quote! { };
-    let mut cnstr = quote! { };
-    let mut pfor = quote! { };
-    let mut pres = quote! { };
-    let mut dcst = quote! { };
-    let mut pout = quote! { };
-    let mut ex = quote! { };
-    let mut mv = quote! { };
-    for i in 0..size {
-        let pi = format_ident!("P{i}");
-        let ti = format_ident!("T{i}");
-        let vi = format_ident!("p{i}");
-        if i < defined {
-            gin = quote! { #gin #pi, };
-            cnstr = quote! { #cnstr #ti: DefinedValue<Value = #pi>, };
-            cnstr = quote! { #cnstr #pi: AsField, };
-            pres = quote! { #pres #pi, };
-            ex = quote! { #ex #vi.extract_value(), };
-        } else {
-            let m = i - defined;
-            cnstr = quote! { #cnstr #ti: MoveTo<#m>, };
-            pout = quote! { #pout #ti::Target, };
-            mv = quote! { #mv #vi.move_to(), };
-        }
-        dcst = quote!{ #dcst #vi, };
-        gin = quote! { #gin #ti, };
-        pfor = quote! { #pfor #ti, };
-    }
-    let debug = format_ident!("debug_defined_values_defined_{defined}_size_{size}");
-    let debug_pres = format!("{pres:?}");
-    quote! { 
-        fn #debug() {
-            let debug_pres = #debug_pres;
-        }
-        impl<#gin> DefinedValues<(#pres)> for Props<(#pfor)> where #cnstr {
-            type Output = Props<(#pout)>;
-            fn extract_values(self) -> ((#pres), Self::Output) {
-                let (#dcst) = self.0;
-                ((#ex),Props((#mv)))
-            }
-        }
-    }
-}
 
 /// ```ignore
 /// impl<T0, T1> Extractable for (T0, T1) {
