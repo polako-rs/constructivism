@@ -639,8 +639,17 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
             let tr = format_ident!("T{}", depth - i - 1);
             let pr = format_ident!("p{}", depth - i - 1);
             cstr = quote! { #cstr #ti: ConstructItem, };
-            ts = quote! { #ts #ti, };
-            vs = quote! { #vs #pi, };
+            ts = if i < depth - 1 {
+                quote! { #ts #ti, }
+            } else {
+                quote! { #ts #ti }
+            };
+            vs = if i < depth - 1 {
+                quote! { #vs #pi, }
+            } else {
+                quote! { #vs #pi }
+            };
+            // ts = quote! { #ts #ti, };
             ns = quote! { (#tr, #ns) };
             dcs = quote! { (#pr, #dcs) };
         }
