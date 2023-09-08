@@ -32,7 +32,7 @@ fn lib() -> TokenStream {
 
 
 #[proc_macro_derive(Construct, attributes(extends, mixin, required, default))]
-pub fn derive_construct(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive_construct_item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let constructable = match Constructable::from_derive(input, ConstructMode::object()) {
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
@@ -270,7 +270,7 @@ impl Constructable {
             let mut expanded_props = quote! { <Self::Extends as #lib::Construct>::ExpandedProps };
             let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
             let mut deconstruct = quote! { };
-            let mut construct = quote! { <Self::Extends as #lib::Construct>::build(rest) };
+            let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
             for mixin in mixins.iter().rev() {
                 
                 let mixin_params = if let Some(ident) = mixin.as_ident() {
@@ -286,7 +286,7 @@ impl Constructable {
                     deconstruct = quote! { (#mixin_params, #deconstruct) };
                 }
                 expanded_props = quote! { #lib::Mix<<#mixin as ConstructItem>::Props, #expanded_props> };
-                construct = quote! { ( #mixin::construct(#mixin_params), #construct ) };
+                construct = quote! { ( #mixin::construct_item(#mixin_params), #construct ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
             let mixed_props = if mixed_props.is_empty() {
@@ -301,7 +301,7 @@ impl Constructable {
             };
             let construct = quote! {
                 (
-                    <Self as #lib::ConstructItem>::construct(self_params),
+                    <Self as #lib::ConstructItem>::construct_item(self_params),
                     #construct
                 )
             };
@@ -318,7 +318,7 @@ impl Constructable {
                     type ExpandedProps = #lib::Mix<(#type_props), #expanded_props>;
                     
                     
-                    fn build<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
+                    fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
                         I, Self::MixedProps,
                         Value = <Self::MixedProps as #lib::Extractable>::Output,
                         Rest = <<<Self::Extends as #lib::Construct>::ExpandedProps as #lib::Extractable>::Input as #lib::AsParams>::Defined
@@ -327,8 +327,8 @@ impl Constructable {
                         #construct
                         // let (args, rest) = params.extract_params();
                         // (
-                        //     <Self as #lib::ConstructItem>::construct(args),
-                        //     <Self::Extends as #lib::Construct>::build(rest)
+                        //     <Self as #lib::ConstructItem>::construct_item(args),
+                        //     <Self::Extends as #lib::Construct>::construct(rest)
                         // )
                     }
                 }
@@ -429,7 +429,6 @@ impl Constructable {
                     }
                 }
             },
-            _ => quote! { }
         };
         quote! {
             mod #mod_ident {
@@ -440,7 +439,7 @@ impl Constructable {
             impl #lib::NonUnit for #type_ident { }
             impl #lib::ConstructItem for #type_ident {
                 type Props = ( #type_props );
-                fn construct(props: Self::Props) -> Self {
+                fn construct_item(props: Self::Props) -> Self {
                     let (#type_props_deconstruct) = props;
                     #construct
                 }

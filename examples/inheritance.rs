@@ -49,7 +49,7 @@ pub fn main() {
     //     let props = props + value;
     //     props.validate(&prop)();
     //     let defined_props = props.defined();
-    //     <Div as constructivist_core::Construct>::build(defined_props)
+    //     <Div as constructivist_core::Construct>::construct(defined_props)
     // };
     // methods!(Border).add_children(1, vec![23]);
     // let _this = new!(Border {
@@ -404,7 +404,7 @@ impl Obj for O2 {
         >,
     {
         let (v, rest) = p.extract_props();
-        // <Self::Extends as Obj>::construct(rest);
+        // <Self::Extends as Obj>::construct_item(rest);
     }
 }
 
@@ -419,5 +419,5 @@ fn ttt() {
 
     O1::construct(p1);
     O2::construct(p2);
-    // O1::construct(p3);
+    // O1::construct_item(p3);
 }

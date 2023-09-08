@@ -21,7 +21,7 @@ pub mod traits {
 
 pub trait ConstructItem {
     type Props: Extractable;
-    fn construct(props: Self::Props) -> Self;
+    fn construct_item(props: Self::Props) -> Self;
 }
 
 pub trait Construct: ConstructItem {
@@ -33,7 +33,7 @@ pub trait Construct: ConstructItem {
     type ExpandedProps: Extractable;
     
     
-    fn build<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
+    fn construct<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedProps,
         Value = <Self::MixedProps as Extractable>::Output,
         Rest = <<<Self::Extends as Construct>::ExpandedProps as Extractable>::Input as AsParams>::Defined
@@ -60,7 +60,7 @@ macro_rules! constructall {
                 let props = props + param;
             )+
             let defined_props = props.defined();
-            <$t as $crate::Construct>::build(defined_props).flattern()
+            <$t as $crate::Construct>::construct(defined_props).flattern()
         }
         
     };
@@ -105,7 +105,7 @@ macro_rules! new {
             let props = <<$t as $crate::Construct>::ExpandedProps as $crate::Extractable>::as_params();
             new!(@fields fields props $($rest)*);
             let defined_props = props.defined();
-            <$t as $crate::Construct>::build(defined_props)
+            <$t as $crate::Construct>::construct(defined_props)
         }
     };
 }
@@ -113,7 +113,7 @@ macro_rules! new {
 impl ConstructItem for () {
     type Props = ();
     
-    fn construct(_: Self::Props)-> Self {
+    fn construct_item(_: Self::Props)-> Self {
         ()
     }
 }
@@ -127,7 +127,7 @@ impl Construct for () {
     type MixedProps = ();
     type ExpandedProps = ();
     
-    fn build<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
+    fn construct<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedProps,
         Value = <Self::MixedProps as Extractable>::Output,
         Rest = <<<Self::Extends as Construct>::ExpandedProps as Extractable>::Input as AsParams>::Defined
@@ -146,7 +146,7 @@ impl<T> Props<T> {
 }
 
 // impl<C: Construct> Props<<<C::ExpandedProps as Extractable>::Input as AsParams>::Undefined> {
-//     pub fn for_construct() -> Self {
+//     pub fn for_construct_item() -> Self {
 
 //     }
 // }

@@ -29,7 +29,7 @@ pub struct Follow {
 }
 
 #[test]
-fn test_construct() {
+fn test_construct_item() {
     let (duck, animal) = constructall!(Duck {
         name: "bob",
         volume: 22,
