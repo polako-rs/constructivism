@@ -731,8 +731,8 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
 /// }
 /// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Props<(T0, T1, T2, T3)> 
 /// where
-///     T2: MoveTo<0>,
-///     T3: MoveTo<1>,
+///     T2: Shift<0>,
+///     T3: Shift<1>,
 /// {
 ///     type Value = E::Output;
 ///     type Rest = Props<(T2::Target, T3::Target)>;
@@ -740,7 +740,7 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
 ///         let (p0, p1, p2, p3) = self.0;
 ///         (
 ///             E::extract((p0, p1)),
-///             Props((p2.move_to(), p3.move_to()))
+///             Props((p2.shift(), p3.shift()))
 ///         )
 ///     }
 /// }
@@ -788,9 +788,9 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
             pout = quote! { #pout #pi, }
         } else {
             let j = i - defined;
-            pcstr = quote! { #pcstr #ti: MoveTo<#j>, };
+            pcstr = quote! { #pcstr #ti: Shift<#j>, };
             trest = quote! { #trest #ti::Target, };
-            pprops = quote! { #pprops #pi.move_to(), };
+            pprops = quote! { #pprops #pi.shift(), };
         }
         pin = quote! { #pin #ti, };
         pfor = quote! { #pfor #ti, };

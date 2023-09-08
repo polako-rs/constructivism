@@ -8,7 +8,6 @@ pub mod traits {
     pub use super::Singleton;
     pub use super::ExtractField;
     pub use super::AsField;
-    pub use super::MoveTo;
     pub use super::DefinedValue;
     pub use super::Flattern;
     pub use super::NonUnit;
@@ -283,9 +282,9 @@ pub trait AsField where Self: Sized {
     fn as_field() -> Field<Self>;
 }
 
-pub trait MoveTo<const I: u8> {
+pub trait Shift<const I: u8> {
     type Target;
-    fn move_to(self) -> Self::Target;
+    fn shift(self) -> Self::Target;
 }
 
 
@@ -316,21 +315,21 @@ impl<const I: u8, T> F<I, T> {
 impl<const I: u8, T> A<I, T> for D<I, T> { }
 impl<const I: u8, T> A<I, T> for U<I, T> { }
 
-impl<const I: u8, const J: u8, T> MoveTo<J> for D<I, T> {
+impl<const I: u8, const J: u8, T> Shift<J> for D<I, T> {
     type Target = D<J, T>;
-    fn move_to(self) -> Self::Target {
+    fn shift(self) -> Self::Target {
         D::<J, T>(self.0)
     }
 }
-impl<const I: u8, const J: u8, T> MoveTo<J> for U<I, T> {
+impl<const I: u8, const J: u8, T> Shift<J> for U<I, T> {
     type Target = U<J, T>;
-    fn move_to(self) -> Self::Target {
+    fn shift(self) -> Self::Target {
         U::<J, T>(PhantomData)
     }
 }
-impl<const I: u8, const J: u8, T> MoveTo<J> for F<I, T> {
+impl<const I: u8, const J: u8, T> Shift<J> for F<I, T> {
     type Target = F<J, T>;
-    fn move_to(self) -> Self::Target {
+    fn shift(self) -> Self::Target {
         F::<J, T>(PhantomData)
     }
 }
