@@ -54,6 +54,9 @@ macro_rules! construct {
         let $params = $params + value;
         $params.validate(&param)();
     };
+    (@fields $fields:ident $params:ident) => {
+        
+    };
     (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
         construct!(@field $fields $params $f $e)
     };
@@ -164,6 +167,27 @@ impl<N: New<T>, T> Param<N,T> {
 pub trait Methods<Protocol: ?Sized> {
 
 }
+
+pub struct MutableMethod<This, In, Out>(pub fn(this: &mut This, input: In) -> Out);
+impl<This, In, Out> MutableMethod<This, In, Out> {
+    pub fn call(&self, this: &mut This, input: In) -> Out {
+        (self.0)(this, input)
+    }
+}
+pub struct ImutableMethod<This, In, Out>(pub fn(this: &This, input: In) -> Out);
+impl<This, In, Out> ImutableMethod<This, In, Out> {
+    pub fn call(&self, this: &This, input: In) -> Out {
+        (self.0)(this, input)
+    }
+}
+
+pub struct StaticMethod<This, In, Out>(pub PhantomData<This>, pub fn(input: In) -> Out);
+impl<This, In, Out> StaticMethod<This, In, Out> {
+    pub fn call(&self, input: In) -> Out {
+        (self.1)(input)
+    }
+}
+
 
 
 
