@@ -52,45 +52,45 @@ pub fn derive_mixin(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(constructable.build(lib()))
 }
 
-enum PropType {
+enum ParamType {
     Single(Type),
-    Union(Vec<Prop>),
+    Union(Vec<Param>),
 }
-impl Parse for PropType {
+impl Parse for ParamType {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         if input.peek(syn::token::Bracket) {
             let content;
             bracketed!(content in input);
-            let props = content.parse_terminated(Prop::parse, Token![,])?;
-            Ok(PropType::Union(props.into_iter().collect()))
+            let params = content.parse_terminated(Param::parse, Token![,])?;
+            Ok(ParamType::Union(params.into_iter().collect()))
         } else {
-            Ok(PropType::Single(input.parse()?))
+            Ok(ParamType::Single(input.parse()?))
         }
     }
 }
 
-enum PropDefault {
+enum ParamDefault {
     None,
     Default,
     Custom(Expr)
 }
-struct Prop {
+struct Param {
     name: Ident,
-    ty: PropType,
-    default: PropDefault,
+    ty: ParamType,
+    default: ParamDefault,
 }
 
-impl Parse for Prop {
+impl Parse for Param {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let name = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty = input.parse()?;
-        let mut default = PropDefault::None;
+        let mut default = ParamDefault::None;
         if input.peek(Token![=]) {
             input.parse::<Token![=]>()?;
-            default = PropDefault::Custom(input.parse()?);
+            default = ParamDefault::Custom(input.parse()?);
         }
-        Ok(Prop { name, ty, default })
+        Ok(Param { name, ty, default })
     }
 }
 
@@ -154,7 +154,7 @@ impl ConstructMode {
 
 struct Constructable {
     ty: Type,
-    props: Vec<Prop>,
+    params: Vec<Param>,
     body: Option<Expr>,
     mode: ConstructMode,
 }
@@ -173,10 +173,10 @@ impl Parse for Constructable {
         let mode = ConstructMode::Construct { extends, mixins: vec![] };
         let content;
         parenthesized!(content in input);
-        let props = content.parse_terminated(Prop::parse, Token![,])?;
-        let props = props.into_iter().collect();
+        let params = content.parse_terminated(Param::parse, Token![,])?;
+        let params = params.into_iter().collect();
         let body = Some(input.parse()?);
-        Ok(Constructable { ty, props, body, mode })
+        Ok(Constructable { ty, params, body, mode })
     }
 }
 
@@ -190,27 +190,27 @@ impl Constructable {
             "{}_construct",
             type_ident.to_string().to_lowercase()
         );
-        let mut type_props = quote! { };                   // slider_construct::min, slider_construct::max, slider_construct::val,
-        let mut type_props_deconstruct = quote! { };       // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
-        let mut prop_values = quote! { };                  // min, max, val,
+        let mut type_params = quote! { };                   // slider_construct::min, slider_construct::max, slider_construct::val,
+        let mut type_params_deconstruct = quote! { };       // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
+        let mut param_values = quote! { };                  // min, max, val,
         let mut impls = quote! { };
         let mut fields = quote! { };
         let mut fields_new = quote! { };
-        for prop in self.props.iter() {
-            let PropType::Single(prop_ty) = &prop.ty else {
-                return quote!(compile_error!("Union props not supported yet."))
+        for param in self.params.iter() {
+            let ParamType::Single(param_ty) = &param.ty else {
+                return quote!(compile_error!("Union params not supported yet."))
             };
-            let ident = &prop.name;
-            prop_values = quote! { #prop_values #ident, };
-            type_props = quote! { #type_props #mod_ident::#ident, };
-            type_props_deconstruct = quote! { #type_props_deconstruct #mod_ident::#ident(mut #ident), };
+            let ident = &param.name;
+            param_values = quote! { #param_values #ident, };
+            type_params = quote! { #type_params #mod_ident::#ident, };
+            type_params_deconstruct = quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
             fields = quote! { #fields
                 #[allow(unused_variables)]
-                pub #ident: #lib::Prop<#ident, #prop_ty>,
+                pub #ident: #lib::Param<#ident, #param_ty>,
             };
-            fields_new = quote! { #fields_new #ident: #lib::Prop(::std::marker::PhantomData), };
-            let default = match &prop.default {
-                PropDefault::Custom(default) => {
+            fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
+            let default = match &param.default {
+                ParamDefault::Custom(default) => {
                     quote! { 
                         impl Default for #ident {
                             fn default() -> Self {
@@ -219,7 +219,7 @@ impl Constructable {
                         }
                     }
                 },
-                PropDefault::Default => {
+                ParamDefault::Default => {
                     quote! { 
                         impl Default for #ident {
                             fn default() -> Self {
@@ -228,15 +228,15 @@ impl Constructable {
                         }
                     }
                 },
-                PropDefault::None => {
+                ParamDefault::None => {
                     quote! { }
                 }
             };
             impls = quote! { #impls 
                 #default
                 #[allow(non_camel_case_types)]
-                pub struct #ident(pub #prop_ty);
-                impl<T: Into<#prop_ty>> From<T> for #ident {
+                pub struct #ident(pub #param_ty);
+                impl<T: Into<#param_ty>> From<T> for #ident {
                     fn from(__value__: T) -> Self {
                         #ident(__value__.into())
                     }
@@ -246,8 +246,8 @@ impl Constructable {
                         #lib::Field::new()
                     }
                 }
-                impl #lib::New<#prop_ty> for #ident {
-                    fn new(from: #prop_ty) -> #ident {
+                impl #lib::New<#param_ty> for #ident {
+                    fn new(from: #param_ty) -> #ident {
                         #ident(from)
                     }
                 }
@@ -257,7 +257,7 @@ impl Constructable {
             expr.clone()
         } else {
             syn::parse2(quote!{ 
-                Self { #prop_values }
+                Self { #param_values }
             }).unwrap()
         };
 
@@ -268,8 +268,8 @@ impl Constructable {
                 quote! { () }
             };
 
-            let mut mixed_props = quote! { };
-            let mut expanded_props = quote! { <Self::Extends as #lib::Construct>::ExpandedProps };
+            let mut mixed_params = quote! { };
+            let mut expanded_params = quote! { <Self::Extends as #lib::Construct>::ExpandedParams };
             let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
             let mut deconstruct = quote! { };
             let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
@@ -280,21 +280,21 @@ impl Constructable {
                 } else {
                     return quote!(compile_error!("Can't construct params ident"));
                 };
-                if mixed_props.is_empty() {
-                    mixed_props = quote! { <#mixin as ConstructItem>::Props, };
+                if mixed_params.is_empty() {
+                    mixed_params = quote! { <#mixin as ConstructItem>::Params, };
                     deconstruct = quote! { #mixin_params };
                 } else {
-                    mixed_props = quote! {  #lib::Mix<<#mixin as ConstructItem>::Props, #mixed_props> };
+                    mixed_params = quote! {  #lib::Mix<<#mixin as ConstructItem>::Params, #mixed_params> };
                     deconstruct = quote! { (#mixin_params, #deconstruct) };
                 }
-                expanded_props = quote! { #lib::Mix<<#mixin as ConstructItem>::Props, #expanded_props> };
+                expanded_params = quote! { #lib::Mix<<#mixin as ConstructItem>::Params, #expanded_params> };
                 construct = quote! { ( #mixin::construct_item(#mixin_params), #construct ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
-            let mixed_props = if mixed_props.is_empty() {
-                quote! { (#type_props) }
+            let mixed_params = if mixed_params.is_empty() {
+                quote! { (#type_params) }
             } else {
-                quote! { #lib::Mix<(#type_props), #mixed_props> }
+                quote! { #lib::Mix<(#type_params), #mixed_params> }
             };
             let deconstruct = if deconstruct.is_empty() {
                 quote! { self_params }
@@ -313,17 +313,17 @@ impl Constructable {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
                     type Methods = #mod_ident::Methods;
-                    type MixedProps = (#mixed_props);
+                    type MixedParams = (#mixed_params);
                     // type Hierarchy =  (Self, <Self::Extends as #lib::Construct>::Hierarchy);
                     type Hierarchy = (Self, #hierarchy);
-                    // type ExpandedProps = #lib::Mix<(#type_props), <Self::Extends as #lib::Construct>::ExpandedProps>;
-                    type ExpandedProps = #lib::Mix<(#type_props), #expanded_props>;
+                    // type ExpandedParams = #lib::Mix<(#type_params), <Self::Extends as #lib::Construct>::ExpandedParams>;
+                    type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
                     
                     
                     fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
-                        I, Self::MixedProps,
-                        Value = <Self::MixedProps as #lib::Extractable>::Output,
-                        Rest = <<<Self::Extends as #lib::Construct>::ExpandedProps as #lib::Extractable>::Input as #lib::AsParams>::Defined
+                        I, Self::MixedParams,
+                        Value = <Self::MixedParams as #lib::Extractable>::Output,
+                        Rest = <<<Self::Extends as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined
                     > {
                         let (#deconstruct, rest) = params.extract_params();
                         #construct
@@ -439,9 +439,9 @@ impl Constructable {
                 #impls
             }
             impl #lib::ConstructItem for #type_ident {
-                type Props = ( #type_props );
-                fn construct_item(props: Self::Props) -> Self {
-                    let (#type_props_deconstruct) = props;
+                type Params = ( #type_params );
+                fn construct_item(params: Self::Params) -> Self {
+                    let (#type_params_deconstruct) = params;
                     #construct
                 }
             }
@@ -482,27 +482,27 @@ impl Constructable {
         let Data::Struct(input) = input.data else {
             throw!(input.ident, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
         };
-        let mut props = vec![];
+        let mut params = vec![];
         for field in input.fields.iter() {
-            let ty = PropType::Single(field.ty.clone());
+            let ty = ParamType::Single(field.ty.clone());
             let Some(name) = field.ident.clone() else {
                 throw!(field, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
             };
             let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
-                PropDefault::None
+                ParamDefault::None
             } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default")) {
                 let Ok(expr) = default.parse_args::<Expr>() else {
                     throw!(name, "Invalid expression for #[default(expr)].");
                 };
-                PropDefault::Custom(expr)
+                ParamDefault::Custom(expr)
             } else {
-                PropDefault::Default
+                ParamDefault::Default
             };
-            props.push(Prop { ty, name, default });
+            params.push(Param { ty, name, default });
         }
         let body = None;
         Ok(Constructable {
-            ty, props, body, mode,
+            ty, params, body, mode,
         })
     }
 }
@@ -518,7 +518,7 @@ pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let max_size = CONSTRUCT_SIZE;
     let extract_field_impls = impl_all_extract_field(max_size);
-    let add_to_props = impl_all_add_to_props(max_size);
+    let add_to_params = impl_all_add_to_params(max_size);
     let defined = impl_all_defined(max_size);
     let extracts = impl_all_extracts(max_size);
     let mixed = impl_all_mixed(max_size);
@@ -526,7 +526,7 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     let flattern = impl_all_flattern(max_size);
     proc_macro::TokenStream::from(quote! {
         #extract_field_impls
-        #add_to_props
+        #add_to_params
         #defined
         #extracts
         #as_params
@@ -546,12 +546,12 @@ fn impl_all_extract_field(max_size: u8) -> TokenStream {
     }
     out
 }
-fn impl_all_add_to_props(max_size: u8) -> TokenStream {
+fn impl_all_add_to_params(max_size: u8) -> TokenStream {
     let mut out = quote! { };
     for size in 1..max_size + 1 {
         for idx in 0..size {
-            let impl_add_to_props = impl_add_to_props(idx, size);
-            out = quote! { #out #impl_add_to_props }
+            let impl_add_to_params = impl_add_to_params(idx, size);
+            out = quote! { #out #impl_add_to_params }
         }
     }
     out
@@ -590,8 +590,8 @@ fn impl_all_mixed(max_size: u8) -> TokenStream {
 /// ```ignore
 /// impl<T0, T1> AsParams for (D<0, T0>, D<1, T1>) {
 /// type Undefined = (U<0, T0>, U<1, T1>);
-///     fn as_params() -> Props<Self::Undefined> {
-///         Props((
+///     fn as_params() -> Params<Self::Undefined> {
+///         Params((
 ///             U::<0, T0>(PhantomData),
 ///             U::<1, T1>(PhantomData)
 ///         ))
@@ -614,10 +614,10 @@ fn impl_all_as_params(max_size: u8) -> TokenStream {
         }
         out = quote! { #out
             impl<#ts> AsParams for (#ds) {
-                type Undefined = Props<(#us)>;
-                type Defined = Props<(#ds)>;
+                type Undefined = Params<(#us)>;
+                type Defined = Params<(#ds)>;
                 fn as_params() -> Self::Undefined {
-                    Props(( #ps ))
+                    Params(( #ps ))
                 }
             }    
         }
@@ -660,7 +660,7 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
 /// Generates single ExtractField trait implementation.
 /// `impl_extract_field(1, 3) will generate this:
 /// ```ignore
-/// impl<T1, A0, A1: A<1, T1>, A2> ExtractField<F<1, T1>, T1> for Props<(A0, A1, A2)> {
+/// impl<T1, A0, A1: A<1, T1>, A2> ExtractField<F<1, T1>, T1> for Params<(A0, A1, A2)> {
 ///     fn field(&self, _: &Field<T1>) -> F<1, T1> {
 ///         F::<1, T1>(PhantomData)
 ///     }
@@ -682,7 +682,7 @@ fn impl_extract_field(idx: u8, size: u8) -> TokenStream {
     }
 
     quote! { 
-        impl<#ti, #gin> ExtractField<#fi, #ti> for Props<(#gout)> {
+        impl<#ti, #gin> ExtractField<#fi, #ti> for Params<(#gout)> {
             fn field(&self, _: &Field<#ti>) -> #fi {
                 F::<#idx, #ti>(PhantomData)
             }
@@ -690,30 +690,30 @@ fn impl_extract_field(idx: u8, size: u8) -> TokenStream {
     }
 }
 
-/// Generates single std::ops::Add implementation for Props of size `size`
-/// and prop at `idx` position. `impl_add_to_props(1, 4)` will generate this:
+/// Generates single std::ops::Add implementation for Params of size `size`
+/// and param at `idx` position. `impl_add_to_params(1, 4)` will generate this:
 /// ```ignore
 //       #gin                                              #pundef
-/// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Props<(A0, U<1, T1>, A2, A3)> {
+/// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Params<(A0, U<1, T1>, A2, A3)> {
 //                           #pout
-///     type Output = Props<(A0, D<1, T1>, A2, A3)>;
+///     type Output = Params<(A0, D<1, T1>, A2, A3)>;
 ///     fn add(self, rhs: D<1, T1>) -> Self::Output {
 //               #dcs
 ///         let (p0, _, p2, p3) = self.0;
 //                 #vls
-///         Props((p0, rhs, p2, p3))
+///         Params((p0, rhs, p2, p3))
 ///     }
 /// }
 //       #gin                                              #pdef
-/// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Props<(A0, D<1, T1>, A2, A3)> {
+/// impl<T1, A0, A2, A3> std::ops::Add<D<1, T1>> for Params<(A0, D<1, T1>, A2, A3)> {
 //                           #pout
-///     type Output = PropConflict<T1>;
+///     type Output = ParamConflict<T1>;
 ///     fn add(self, _: D<1, T1>) -> Self::Output {
-///         PropConflict::new()
+///         ParamConflict::new()
 ///     }
 /// }
 /// ```
-fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
+fn impl_add_to_params(idx: u8, size: u8) -> TokenStream {
     let ti = format_ident!("T{idx}");
     let di = quote! { D<#idx, #ti> };
     let ui = quote! { U<#idx, #ti> };
@@ -743,18 +743,18 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
         }
     }
     quote! {
-        impl<#ti, #gin> std::ops::Add<#di> for Props<(#pundef)> {
-            type Output = Props<(#pout)>;
+        impl<#ti, #gin> std::ops::Add<#di> for Params<(#pundef)> {
+            type Output = Params<(#pout)>;
             fn add(self, rhs: #di) -> Self::Output {
                 let (#dcs) = self.0;
-                Props((#vls))
+                Params((#vls))
             }
         }
 
-        impl<#ti, #gin> std::ops::Add<#di> for Props<(#pdef)> {
-            type Output = PropConflict<#ti>;
+        impl<#ti, #gin> std::ops::Add<#di> for Params<(#pdef)> {
+            type Output = ParamConflict<#ti>;
             fn add(self, _: #di) -> Self::Output {
-                PropConflict::new()
+                ParamConflict::new()
             }
         }
     }
@@ -770,18 +770,18 @@ fn impl_add_to_props(idx: u8, size: u8) -> TokenStream {
 ///         (p0.0, p1.0)
 ///     }
 /// }
-/// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Props<(T0, T1, T2, T3)> 
+/// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Params<(T0, T1, T2, T3)> 
 /// where
 ///     T2: Shift<0>,
 ///     T3: Shift<1>,
 /// {
 ///     type Value = E::Output;
-///     type Rest = Props<(T2::Target, T3::Target)>;
+///     type Rest = Params<(T2::Target, T3::Target)>;
 ///     fn extract_params(self) -> (Self::Value, Self::Rest) {
 ///         let (p0, p1, p2, p3) = self.0;
 ///         (
 ///             E::extract((p0, p1)),
-///             Props((p2.shift(), p3.shift()))
+///             Params((p2.shift(), p3.shift()))
 ///         )
 ///     }
 /// }
@@ -819,7 +819,7 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
     let mut trest = quote! { };
     let mut pdcstr = quote! { };
     let mut pout = quote! { };
-    let mut pprops = quote! { };
+    let mut pparams = quote! { };
 
     for i in 0..size {
         let ti = format_ident!("T{i}");
@@ -831,33 +831,33 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
             let j = i - defined;
             pcstr = quote! { #pcstr #ti: Shift<#j>, };
             trest = quote! { #trest #ti::Target, };
-            pprops = quote! { #pprops #pi.shift(), };
+            pparams = quote! { #pparams #pi.shift(), };
         }
         pin = quote! { #pin #ti, };
         pfor = quote! { #pfor #ti, };
         pdcstr = quote! { #pdcstr #pi, };
     }
     quote! {
-        impl<#pin E: Extractable<Input = (#ein)>> ExtractParams<#defined, E> for Props<(#pin)> 
+        impl<#pin E: Extractable<Input = (#ein)>> ExtractParams<#defined, E> for Params<(#pin)> 
         where #pcstr
         {
             type Value = E::Output;
-            type Rest = Props<(#trest)>;
+            type Rest = Params<(#trest)>;
             fn extract_params(self) -> (Self::Value, Self::Rest) {
                 let (#pdcstr) = self.0;
                 (
                     E::extract((#pout)),
-                    Props((#pprops))
+                    Params((#pparams))
                 )
             }
         }
     }
 }
 
-// impl<T0: ExtractValue, T1: ExtractValue, T2: ExtractValue> Props<(T0, T1, T2)> {
-//     pub fn defined(self) -> Props<(D<0, T0::Value>, D<1, T1::Value>, D<2, T2::Value>)> {
+// impl<T0: ExtractValue, T1: ExtractValue, T2: ExtractValue> Params<(T0, T1, T2)> {
+//     pub fn defined(self) -> Params<(D<0, T0::Value>, D<1, T1::Value>, D<2, T2::Value>)> {
 //         let (p0,p1,p2) = self.0;
-//         Props((
+//         Params((
 //             D::<0, _>(p0.extract_value()),
 //             D::<1, _>(p1.extract_value()),
 //             D::<2, _>(p2.extract_value()),
@@ -880,10 +880,10 @@ fn impl_defined(size: u8) -> TokenStream {
         vals = quote! { #vals D::<#i, _>(#pi.extract_value()), }
     }
     quote! { 
-        impl<#gin> Props<(#gout)> {
-            pub fn defined(self) -> Props<(#pout)> {
+        impl<#gin> Params<(#gout)> {
+            pub fn defined(self) -> Params<(#pout)> {
                 let (#dcstr) = self.0;
-                Props((#vals))
+                Params((#vals))
             }
         }
     }

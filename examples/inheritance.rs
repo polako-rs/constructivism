@@ -42,14 +42,14 @@ pub fn main() {
     // let _ = {
     //     use constructivist_core::traits::*;
     //     let fields = <<Div as constructivist_core::Construct>::Fields as constructivist_core::Singleton>::instance();
-    //     let props = <<Div as constructivist_core::Construct>::ExpandedProps as constructivist_core::Extractable>::as_params();
-    //     let prop = &fields.width;
-    //     let field = prop.field();
-    //     let value = props.field(&field).define(prop.value(25.));
-    //     let props = props + value;
-    //     props.validate(&prop)();
-    //     let defined_props = props.defined();
-    //     <Div as constructivist_core::Construct>::construct(defined_props)
+    //     let params = <<Div as constructivist_core::Construct>::ExpandedParams as constructivist_core::Extractable>::as_params();
+    //     let param = &fields.width;
+    //     let field = param.field();
+    //     let value = params.field(&field).define(param.value(25.));
+    //     let params = params + value;
+    //     params.validate(&param)();
+    //     let defined_params = params.defined();
+    //     <Div as constructivist_core::Construct>::construct(defined_params)
     // };
     // methods!(Border).add_children(1, vec![23]);
     // let _this = new!(Border {
@@ -318,28 +318,28 @@ impl<L0, L1, R0> Mixed<(D<0, R0>,)> for (D<0, L0>, D<1, L1>) {
 struct Mix<L, R>(PhantomData<(L, R)>);
 
 
-pub trait ExtractProps<const S: u8, T> {
+pub trait ExtractParams<const S: u8, T> {
     type Value;
     type Rest;
 
-    fn extract_props(self) -> (Self::Value, Self::Rest);
+    fn extract_params(self) -> (Self::Value, Self::Rest);
 }
 
 struct Params<T>(T);
 
-impl<T0, T1, T2, E: Extract<Input = (T0,)>> ExtractProps<1, E> for Params<(T0, T1, T2)> {
+impl<T0, T1, T2, E: Extract<Input = (T0,)>> ExtractParams<1, E> for Params<(T0, T1, T2)> {
     type Value = E::Output;
     type Rest = Params<(T1, T2)>;
-    fn extract_props(self) -> (Self::Value, Self::Rest) {
+    fn extract_params(self) -> (Self::Value, Self::Rest) {
         let (p0, p1, p2) = self.0;
         (E::extract((p0,)), Params((p1, p2)))
     }
 }
 
-impl<T0, T1, T2, E: Extract<Input = (T0, T1)>> ExtractProps<2, E> for Params<(T0, T1, T2)> {
+impl<T0, T1, T2, E: Extract<Input = (T0, T1)>> ExtractParams<2, E> for Params<(T0, T1, T2)> {
     type Value = E::Output;
     type Rest = Params<(T2,)>;
-    fn extract_props(self) -> (Self::Value, Self::Rest) {
+    fn extract_params(self) -> (Self::Value, Self::Rest) {
         let (p0, p1, p2) = self.0;
         (E::extract((p0, p1)), Params((p2,)))
     }
@@ -358,20 +358,20 @@ impl<T0, T1, T2, E: Extract<Input = (T0, T1)>> ExtractProps<2, E> for Params<(T0
 // }
 
 trait Obj {
-    type Props: Extract;
+    type Params: Extract;
     type Extends: Obj;
 
     fn construct<P, const I: u8>(p: P)
     where
-        P: ExtractProps<I, Self::Props, Value = <Self::Props as Extract>::Output>;
+        P: ExtractParams<I, Self::Params, Value = <Self::Params as Extract>::Output>;
 }
 
 impl Obj for () {
     type Extends = ();
-    type Props = ();
+    type Params = ();
     fn construct<P, const I: u8>(p: P)
     where
-        P: ExtractProps<I, Self::Props, Value = <Self::Props as Extract>::Output>,
+        P: ExtractParams<I, Self::Params, Value = <Self::Params as Extract>::Output>,
     {
     }
 }
@@ -379,31 +379,31 @@ impl Obj for () {
 struct O1;
 
 impl Obj for O1 {
-    type Props = (usize,);
+    type Params = (usize,);
     type Extends = ();
-    // type ExpandedProps = Params<()>;
+    // type ExpandedParams = Params<()>;
     fn construct<P, const I: u8>(p: P)
     where
-        P: ExtractProps<I, Self::Props, Value = <Self::Props as Extract>::Output>,
+        P: ExtractParams<I, Self::Params, Value = <Self::Params as Extract>::Output>,
     {
-        let (v, rest) = p.extract_props();
+        let (v, rest) = p.extract_params();
     }
 }
 
 struct O2;
 
 impl Obj for O2 {
-    type Props = Mix<(usize,), (usize,)>;
+    type Params = Mix<(usize,), (usize,)>;
     type Extends = O2;
     fn construct<P, const I: u8>(p: P)
     where
-        P: ExtractProps<
+        P: ExtractParams<
             I,
-            Self::Props,
-            Value = <Self::Props as Extract>::Output,
+            Self::Params,
+            Value = <Self::Params as Extract>::Output,
         >,
     {
-        let (v, rest) = p.extract_props();
+        let (v, rest) = p.extract_params();
         // <Self::Extends as Obj>::construct_item(rest);
     }
 }

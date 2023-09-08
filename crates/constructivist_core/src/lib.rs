@@ -19,23 +19,23 @@ pub mod traits {
 
 
 pub trait ConstructItem {
-    type Props: Extractable;
-    fn construct_item(props: Self::Props) -> Self;
+    type Params: Extractable;
+    fn construct_item(params: Self::Params) -> Self;
 }
 
 pub trait Construct: ConstructItem {
     type Extends: Construct;
     type Fields: Singleton;
     type Methods: Singleton;
-    type MixedProps: Extractable;
+    type MixedParams: Extractable;
     type Hierarchy;
-    type ExpandedProps: Extractable;
+    type ExpandedParams: Extractable;
     
     
-    fn construct<P, const I: u8>(p: P) -> Self::Hierarchy where P: ExtractParams<
-        I, Self::MixedProps,
-        Value = <Self::MixedProps as Extractable>::Output,
-        Rest = <<<Self::Extends as Construct>::ExpandedProps as Extractable>::Input as AsParams>::Defined
+    fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: ExtractParams<
+        I, Self::MixedParams,
+        Value = <Self::MixedParams as Extractable>::Output,
+        Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
     >;
 }
 
@@ -47,52 +47,52 @@ pub trait Mixin: ConstructItem {
 
 #[macro_export]
 macro_rules! construct {
-    (@field $fields:ident $props:ident $f:ident $e:expr) => {
-        let prop = &$fields.$f;
-        let field = prop.field();
-        let value = $props.field(&field).define(prop.value($e.into()));
-        let $props = $props + value;
-        $props.validate(&prop)();
+    (@field $fields:ident $params:ident $f:ident $e:expr) => {
+        let param = &$fields.$f;
+        let field = param.field();
+        let value = $params.field(&field).define(param.value($e.into()));
+        let $params = $params + value;
+        $params.validate(&param)();
     };
-    (@fields $fields:ident $props:ident $f:ident: $e:expr) => {
-        construct!(@field $fields $props $f $e)
+    (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
+        construct!(@field $fields $params $f $e)
     };
-    (@fields $fields:ident $props:ident $f:ident) => {
-        construct!(@field $fields $props $f $f);
-        construct!(@fields $fields $props $($rest)*)
+    (@fields $fields:ident $params:ident $f:ident) => {
+        construct!(@field $fields $params $f $f);
+        construct!(@fields $fields $params $($rest)*)
     };
-    (@fields $fields:ident $props:ident $f:ident: $e:expr,) => {
-        construct!(@field $fields $props $f $e);
+    (@fields $fields:ident $params:ident $f:ident: $e:expr,) => {
+        construct!(@field $fields $params $f $e);
     };
-    (@fields $fields:ident $props:ident $f:ident,) => {
-        construct!(@field $fields $props $f $f);
-        construct!(@fields $fields $props $($rest)*)
+    (@fields $fields:ident $params:ident $f:ident,) => {
+        construct!(@field $fields $params $f $f);
+        construct!(@fields $fields $params $($rest)*)
     };
-    (@fields $fields:ident $props:ident $f:ident: $e:expr, $($rest:tt)*) => {
-        construct!(@field $fields $props $f $e);
-        construct!(@fields $fields $props $($rest)*)
+    (@fields $fields:ident $params:ident $f:ident: $e:expr, $($rest:tt)*) => {
+        construct!(@field $fields $params $f $e);
+        construct!(@fields $fields $params $($rest)*)
     };
-    (@fields $fields:ident $props:ident $f:ident, $($rest:tt)*) => {
-        construct!(@field $fields $props $f $f);
-        construct!(@fields $fields $props $($rest)*)
+    (@fields $fields:ident $params:ident $f:ident, $($rest:tt)*) => {
+        construct!(@field $fields $params $f $f);
+        construct!(@fields $fields $params $($rest)*)
     };
     ($t:ty { $($rest:tt)* } ) => {
         {
             use $crate::traits::*;
             type Fields = <$t as $crate::Construct>::Fields;
             let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
-            let props = <<$t as $crate::Construct>::ExpandedProps as $crate::Extractable>::as_params();
-            construct!(@fields fields props $($rest)*);
-            let defined_props = props.defined();
-            <$t as $crate::Construct>::construct(defined_props).flattern()
+            let params = <<$t as $crate::Construct>::ExpandedParams as $crate::Extractable>::as_params();
+            construct!(@fields fields params $($rest)*);
+            let defined_params = params.defined();
+            <$t as $crate::Construct>::construct(defined_params).flattern()
         }
     };
 }
 
 impl ConstructItem for () {
-    type Props = ();
+    type Params = ();
     
-    fn construct_item(_: Self::Props)-> Self {
+    fn construct_item(_: Self::Params)-> Self {
         ()
     }
 }
@@ -103,47 +103,47 @@ impl Construct for () {
     type Extends = ();
     type Hierarchy = ();
     // type Mixed = ();
-    type MixedProps = ();
-    type ExpandedProps = ();
+    type MixedParams = ();
+    type ExpandedParams = ();
     
     fn construct<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
-        I, Self::MixedProps,
-        Value = <Self::MixedProps as Extractable>::Output,
-        Rest = <<<Self::Extends as Construct>::ExpandedProps as Extractable>::Input as AsParams>::Defined
+        I, Self::MixedParams,
+        Value = <Self::MixedParams as Extractable>::Output,
+        Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
     > {
         ()
     }
 
 }
 
-pub struct Props<T>(T);
-impl<T> Props<T> {
+pub struct Params<T>(T);
+impl<T> Params<T> {
     pub fn validate<P>(&self, _: P) -> fn() -> () {
         || { }
     }
 
 }
 
-// impl<C: Construct> Props<<<C::ExpandedProps as Extractable>::Input as AsParams>::Undefined> {
+// impl<C: Construct> Params<<<C::ExpandedParams as Extractable>::Input as AsParams>::Undefined> {
 //     pub fn for_construct_item() -> Self {
 
 //     }
 // }
 
-pub struct PropConflict<N>(PhantomData<N>);
-impl<N> PropConflict<N> {
+pub struct ParamConflict<N>(PhantomData<N>);
+impl<N> ParamConflict<N> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
-    pub fn validate<T>(&self, _: &Prop<N, T>) -> PropRedefined<N> {
-        PropRedefined(PhantomData)
+    pub fn validate<T>(&self, _: &Param<N, T>) -> ParamRedefined<N> {
+        ParamRedefined(PhantomData)
     }
 }
 
-pub struct PropRedefined<N>(PhantomData<N>);
+pub struct ParamRedefined<N>(PhantomData<N>);
 
-pub struct Prop<N, T>(pub PhantomData<(N, T)>);
-impl<N, T> Prop<N, T> {
+pub struct Param<N, T>(pub PhantomData<(N, T)>);
+impl<N, T> Param<N, T> {
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -155,7 +155,7 @@ impl<N, T> Prop<N, T> {
 pub trait New<T> {
     fn new(from: T) -> Self;
 }
-impl<N: New<T>, T> Prop<N,T> {
+impl<N: New<T>, T> Param<N,T> {
     pub fn value(&self, value: T) -> N {
         N::new(value)
     }
@@ -236,19 +236,19 @@ pub trait ExtractParams<const S: u8, T> {
     fn extract_params(self) -> (Self::Value, Self::Rest);
 }
 
-// impl ExtractParams<0, ()> for Props<()> {
+// impl ExtractParams<0, ()> for Params<()> {
 //     type Value = ();
-//     type Rest = Props<()>;
+//     type Rest = Params<()>;
 //     fn extract_params(self) -> (Self::Value, Self::Rest) {
-//         ((), Props(()))
+//         ((), Params(()))
 //     }
 // }
-impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Props<()>
+impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Params<()>
 {
     type Value = E::Output;
-    type Rest = Props<()>;
+    type Rest = Params<()>;
     fn extract_params(self) -> (Self::Value, Self::Rest) {
-        (E::extract(()), Props(()))
+        (E::extract(()), Params(()))
     }
 }
 
@@ -320,7 +320,7 @@ impl<const I: u8, T> ExtractValue for D<I, T> {
     }
 }
 
-impl Props<()> {
+impl Params<()> {
     pub fn defined(self) -> Self {
         self
     }
