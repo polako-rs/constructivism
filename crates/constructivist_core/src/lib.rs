@@ -8,7 +8,7 @@ pub mod traits {
     pub use super::Singleton;
     pub use super::ExtractField;
     pub use super::AsField;
-    pub use super::DefinedValue;
+    pub use super::ExtractValue;
     pub use super::Flattern;
 
     pub use super::New;
@@ -267,7 +267,7 @@ pub trait Shift<const I: u8> {
 }
 
 
-pub trait DefinedValue {
+pub trait ExtractValue {
     type Value;
     fn extract_value(self) -> Self::Value;
 }
@@ -307,13 +307,13 @@ impl<const I: u8, const J: u8, T> Shift<J> for F<I, T> {
     }
 }
 
-impl<const I: u8, T: Default> DefinedValue for U<I, T> {
+impl<const I: u8, T: Default> ExtractValue for U<I, T> {
     type Value = T;
     fn extract_value(self) -> T {
         T::default()
     }
 }
-impl<const I: u8, T> DefinedValue for D<I, T> {
+impl<const I: u8, T> ExtractValue for D<I, T> {
     type Value = T;
     fn extract_value(self) -> T {
         self.0

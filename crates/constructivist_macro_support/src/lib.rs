@@ -854,7 +854,7 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
     }
 }
 
-// impl<T0: DefinedValue, T1: DefinedValue, T2: DefinedValue> Props<(T0, T1, T2)> {
+// impl<T0: ExtractValue, T1: ExtractValue, T2: ExtractValue> Props<(T0, T1, T2)> {
 //     pub fn defined(self) -> Props<(D<0, T0::Value>, D<1, T1::Value>, D<2, T2::Value>)> {
 //         let (p0,p1,p2) = self.0;
 //         Props((
@@ -873,7 +873,7 @@ fn impl_defined(size: u8) -> TokenStream {
     for i in 0..size {
         let ti = format_ident!("T{i}");
         let pi = format_ident!("p{i}");
-        gin = quote! { #gin #ti: DefinedValue, };
+        gin = quote! { #gin #ti: ExtractValue, };
         gout = quote! { #gout #ti, };
         pout = quote! { #pout D<#i, #ti::Value>, };
         dcstr = quote! { #dcstr #pi, };
