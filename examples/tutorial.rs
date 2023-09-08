@@ -1,6 +1,5 @@
 use constructivist::*;
 
-
 // 1. You can derive `Construct`
 #[derive(Construct)]
 pub struct Node {
@@ -22,9 +21,7 @@ fn step_01() {
 
 // 3. You can skip declaration of default values
 fn step_03() {
-    let node = construct!(Node {
-        visible: false
-    });
+    let node = construct!(Node { visible: false });
     assert_eq!(node.position.0, 0.)
 }
 
@@ -41,15 +38,13 @@ struct Reference {
 
 // 5. You have to pass required field to construct!(..) or you get compilation error
 fn step_05() {
-    let reference = construct!(Reference {
-        target: Entity(23)
-    });
+    let reference = construct!(Reference { target: Entity(23) });
     assert_eq!(reference.target.0, 23);
     assert_eq!(reference.count, 0);
 }
 
 // 6. You derive Construct using `constructable! { .. }`, define custom params
-// and provide custom constructor. `min: f32 = 0.` syntax defines min param with 
+// and provide custom constructor. `min: f32 = 0.` syntax defines min param with
 // default value of 0. If you doesn't provide default value, this param counts as
 // required.
 
@@ -59,7 +54,7 @@ pub struct Range {
     max: f32,
 }
 
-constructable! { 
+constructable! {
     Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
         if max < min {
             max = min;
@@ -71,9 +66,7 @@ constructable! {
 
 // 7. Provided constructor will be called for instancing Range
 fn step_07() {
-    let range = construct!(Range {
-        val: 100.
-    });
+    let range = construct!(Range { val: 100. });
     assert_eq!(range.min, 0.);
     assert_eq!(range.max, 1.);
     assert_eq!(range.val, 1.);
@@ -85,7 +78,7 @@ fn step_07() {
 #[extends(Node)]
 pub struct Rect {
     #[default((100., 100.))]
-    size: (f32, f32)
+    size: (f32, f32),
 }
 
 // 9. You can pass params for all structs in inheritance branch with single call
@@ -102,7 +95,7 @@ fn step_09() {
 // 10. You can derive Mixin as well.
 #[derive(Mixin)]
 pub struct Input {
-    disabled: bool
+    disabled: bool,
 }
 
 // 11. You can inject mixins into constructs:
@@ -110,14 +103,12 @@ pub struct Input {
 #[extends(Rect)]
 #[mixin(Input)]
 pub struct Button {
-    pressed: bool
+    pressed: bool,
 }
 
 // 12. You can pass arguments to inheritance tree (with mixins) as well
 fn step_12() {
-    let (button, input, rect, node) = construct!(Button {
-        disabled: true
-    });
+    let (button, input, rect, node) = construct!(Button { disabled: true });
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
     assert_eq!(rect.size.0, 100.);
@@ -129,12 +120,10 @@ fn step_12() {
 #[extends(Button)]
 pub struct Radio {
     #[required]
-    value: String
+    value: String,
 }
 fn step_13() {
-    let (radio, button, input, rect, node) = construct!(Radio {
-        value: "option_0"
-    });
+    let (radio, button, input, rect, node) = construct!(Radio { value: "option_0" });
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, false);
     assert_eq!(rect.size.0, 100.);
@@ -152,7 +141,7 @@ fn step_13() {
 
 // TODO: generics
 
-// TODO: nested results, like 
+// TODO: nested results, like
 // let (radio, base) = construct!(*Radio { ... });
 
 // TODO: nested construct inference (looks like possible):

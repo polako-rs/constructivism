@@ -1,7 +1,6 @@
 use constructivist_core::construct;
 use constructivist_macro_support::Construct;
 
-
 #[derive(Construct)]
 pub struct Animal {
     #[required]
@@ -18,7 +17,10 @@ pub struct Duck {
 pub struct Entity(usize);
 
 #[derive(Default)]
-pub struct Vec2 { pub x: f32, pub y: f32 }
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
 
 #[derive(Construct)]
 #[extends(Duck)]

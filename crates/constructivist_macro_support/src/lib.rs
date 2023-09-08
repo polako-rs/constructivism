@@ -1,7 +1,10 @@
-use syn::{parse_macro_input, DeriveInput, Data, Type, Expr, parse::Parse, bracketed, Token, Ident, parenthesized, spanned::Spanned};
-use quote::*;
 use proc_macro;
 use proc_macro2::TokenStream;
+use quote::*;
+use syn::{
+    bracketed, parenthesized, parse::Parse, parse_macro_input, spanned::Spanned, Data, DeriveInput,
+    Expr, Ident, Token, Type,
+};
 
 mod synext;
 use synext::*;
@@ -32,13 +35,12 @@ fn lib() -> TokenStream {
     }
 }
 
-
 #[proc_macro_derive(Construct, attributes(extends, mixin, required, default))]
 pub fn derive_construct_item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let constructable = match Constructable::from_derive(input, ConstructMode::object()) {
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
-        Ok(c) => c
+        Ok(c) => c,
     };
     proc_macro::TokenStream::from(constructable.build(lib()))
 }
@@ -47,7 +49,7 @@ pub fn derive_mixin(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let constructable = match Constructable::from_derive(input, ConstructMode::mixin()) {
         Err(e) => return proc_macro::TokenStream::from(e.to_compile_error()),
-        Ok(c) => c
+        Ok(c) => c,
     };
     proc_macro::TokenStream::from(constructable.build(lib()))
 }
@@ -72,7 +74,7 @@ impl Parse for ParamType {
 enum ParamDefault {
     None,
     Default,
-    Custom(Expr)
+    Custom(Expr),
 }
 struct Param {
     name: Ident,
@@ -102,7 +104,10 @@ macro_rules! throw {
 
 enum ConstructMode {
     Mixin,
-    Construct { extends: Option<Type>, mixins: Vec<Type> },
+    Construct {
+        extends: Option<Type>,
+        mixins: Vec<Type>,
+    },
 }
 
 impl ConstructMode {
@@ -110,18 +115,21 @@ impl ConstructMode {
         ConstructMode::Mixin
     }
     fn object() -> Self {
-        ConstructMode::Construct { extends: None, mixins: vec![] }
+        ConstructMode::Construct {
+            extends: None,
+            mixins: vec![],
+        }
     }
     fn is_mixin(&self) -> bool {
         match self {
             ConstructMode::Mixin => true,
-            _ => false
+            _ => false,
         }
     }
     fn is_object(&self) -> bool {
         match self {
             ConstructMode::Construct { .. } => true,
-            _ => false
+            _ => false,
         }
     }
     fn set_extends(&mut self, ty: Type) -> Result<(), syn::Error> {
@@ -129,11 +137,13 @@ impl ConstructMode {
             ConstructMode::Construct { extends, .. } => {
                 *extends = Some(ty);
                 Ok(())
-            },
-            _ => {
-                throw!(ty, "set_extends(..) available only for ConstructMode::Construct");
             }
-
+            _ => {
+                throw!(
+                    ty,
+                    "set_extends(..) available only for ConstructMode::Construct"
+                );
+            }
         }
     }
     fn push_mixin(&mut self, ty: Type) -> Result<(), syn::Error> {
@@ -142,13 +152,14 @@ impl ConstructMode {
                 // throw!(ty, format!("adding mixin for {:?}", ty.to_token_stream()));
                 mixins.push(ty);
                 Ok(())
-            },
-            _ => {
-                throw!(ty, "push_mixin(..) available only for ConstructMode::Construct");
             }
-
+            _ => {
+                throw!(
+                    ty,
+                    "push_mixin(..) available only for ConstructMode::Construct"
+                );
+            }
         }
-
     }
 }
 
@@ -158,7 +169,6 @@ struct Constructable {
     body: Option<Expr>,
     mode: ConstructMode,
 }
-
 
 impl Parse for Constructable {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
@@ -170,13 +180,21 @@ impl Parse for Constructable {
             }
             extends = Some(input.parse()?)
         }
-        let mode = ConstructMode::Construct { extends, mixins: vec![] };
+        let mode = ConstructMode::Construct {
+            extends,
+            mixins: vec![],
+        };
         let content;
         parenthesized!(content in input);
         let params = content.parse_terminated(Param::parse, Token![,])?;
         let params = params.into_iter().collect();
         let body = Some(input.parse()?);
-        Ok(Constructable { ty, params, body, mode })
+        Ok(Constructable {
+            ty,
+            params,
+            body,
+            mode,
+        })
     }
 }
 
@@ -186,16 +204,17 @@ impl Constructable {
         let Some(type_ident) = ty.as_ident() else {
             return quote!(compile_error!("Can't implement ConstructItem for {}", stringify!(#ty)));
         };
-        let mod_ident = format_ident!(                      // slider_construct
+        let mod_ident = format_ident!(
+            // slider_construct
             "{}_construct",
             type_ident.to_string().to_lowercase()
         );
-        let mut type_params = quote! { };                   // slider_construct::min, slider_construct::max, slider_construct::val,
-        let mut type_params_deconstruct = quote! { };       // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
-        let mut param_values = quote! { };                  // min, max, val,
-        let mut impls = quote! { };
-        let mut fields = quote! { };
-        let mut fields_new = quote! { };
+        let mut type_params = quote! {}; // slider_construct::min, slider_construct::max, slider_construct::val,
+        let mut type_params_deconstruct = quote! {}; // slider_construct::min(min), slider_construct::max(max), slider_construct::val(val),
+        let mut param_values = quote! {}; // min, max, val,
+        let mut impls = quote! {};
+        let mut fields = quote! {};
+        let mut fields_new = quote! {};
         for param in self.params.iter() {
             let ParamType::Single(param_ty) = &param.ty else {
                 return quote!(compile_error!("Union params not supported yet."))
@@ -203,7 +222,8 @@ impl Constructable {
             let ident = &param.name;
             param_values = quote! { #param_values #ident, };
             type_params = quote! { #type_params #mod_ident::#ident, };
-            type_params_deconstruct = quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
+            type_params_deconstruct =
+                quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
             fields = quote! { #fields
                 #[allow(unused_variables)]
                 pub #ident: #lib::Param<#ident, #param_ty>,
@@ -211,28 +231,28 @@ impl Constructable {
             fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
             let default = match &param.default {
                 ParamDefault::Custom(default) => {
-                    quote! { 
+                    quote! {
                         impl Default for #ident {
                             fn default() -> Self {
                                 #ident(#default)
                             }
                         }
                     }
-                },
+                }
                 ParamDefault::Default => {
-                    quote! { 
+                    quote! {
                         impl Default for #ident {
                             fn default() -> Self {
                                 #ident(Default::default())
                             }
                         }
                     }
-                },
+                }
                 ParamDefault::None => {
-                    quote! { }
+                    quote! {}
                 }
             };
-            impls = quote! { #impls 
+            impls = quote! { #impls
                 #default
                 #[allow(non_camel_case_types)]
                 pub struct #ident(pub #param_ty);
@@ -256,9 +276,10 @@ impl Constructable {
         let construct = if let Some(expr) = &self.body {
             expr.clone()
         } else {
-            syn::parse2(quote!{ 
+            syn::parse2(quote! {
                 Self { #param_values }
-            }).unwrap()
+            })
+            .unwrap()
         };
 
         let object = if let ConstructMode::Construct { extends, mixins } = &self.mode {
@@ -268,13 +289,12 @@ impl Constructable {
                 quote! { () }
             };
 
-            let mut mixed_params = quote! { };
+            let mut mixed_params = quote! {};
             let mut expanded_params = quote! { <Self::Extends as #lib::Construct>::ExpandedParams };
             let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
-            let mut deconstruct = quote! { };
+            let mut deconstruct = quote! {};
             let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
             for mixin in mixins.iter().rev() {
-                
                 let mixin_params = if let Some(ident) = mixin.as_ident() {
                     format_ident!("{}_params", ident.to_string().to_lowercase())
                 } else {
@@ -284,10 +304,12 @@ impl Constructable {
                     mixed_params = quote! { <#mixin as ConstructItem>::Params, };
                     deconstruct = quote! { #mixin_params };
                 } else {
-                    mixed_params = quote! {  #lib::Mix<<#mixin as ConstructItem>::Params, #mixed_params> };
+                    mixed_params =
+                        quote! {  #lib::Mix<<#mixin as ConstructItem>::Params, #mixed_params> };
                     deconstruct = quote! { (#mixin_params, #deconstruct) };
                 }
-                expanded_params = quote! { #lib::Mix<<#mixin as ConstructItem>::Params, #expanded_params> };
+                expanded_params =
+                    quote! { #lib::Mix<<#mixin as ConstructItem>::Params, #expanded_params> };
                 construct = quote! { ( #mixin::construct_item(#mixin_params), #construct ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
@@ -307,7 +329,7 @@ impl Constructable {
                     #construct
                 )
             };
-            
+
             quote! {
                 impl #lib::Construct for #type_ident {
                     type Extends = #extends;
@@ -318,8 +340,8 @@ impl Constructable {
                     type Hierarchy = (Self, #hierarchy);
                     // type ExpandedParams = #lib::Mix<(#type_params), <Self::Extends as #lib::Construct>::ExpandedParams>;
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
-                    
-                    
+
+
                     fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
                         I, Self::MixedParams,
                         Value = <Self::MixedParams as #lib::Extractable>::Output,
@@ -336,17 +358,17 @@ impl Constructable {
                 }
             }
         } else {
-            quote! { }
+            quote! {}
         };
         let mixin = if self.mode.is_mixin() {
-            quote! { 
+            quote! {
                 impl #lib::Mixin for #type_ident {
                     type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
                     type Methods<T: #lib::Singleton + 'static> = #mod_ident::Methods<T>;
-                } 
+                }
             }
         } else {
-            quote! { }
+            quote! {}
         };
         let decls = match &self.mode {
             ConstructMode::Construct { extends, mixins } => {
@@ -367,7 +389,7 @@ impl Constructable {
                     pub struct Fields {
                         #fields
                     }
-    
+
                     pub struct Methods;
                     impl #lib::Singleton for Fields {
                         fn instance() -> &'static Self {
@@ -394,9 +416,9 @@ impl Constructable {
                             <#deref_methods as #lib::Singleton>::instance()
                         }
                     }
-    
+
                 }
-            },
+            }
             ConstructMode::Mixin => quote! {
                 pub struct Fields<T: #lib::Singleton> {
                     #fields
@@ -451,16 +473,21 @@ impl Constructable {
         }
     }
 
-
     pub fn from_derive(input: DeriveInput, mut mode: ConstructMode) -> Result<Self, syn::Error> {
         if input.generics.params.len() > 0 {
-            throw!(input.ident, "#[derive(Construct)] doesn't support generics yet.");
+            throw!(
+                input.ident,
+                "#[derive(Construct)] doesn't support generics yet."
+            );
         }
-        let ident = input.ident.clone();                      // Slider
-        let ty = syn::parse2(quote!{ #ident }).unwrap();
+        let ident = input.ident.clone(); // Slider
+        let ty = syn::parse2(quote! { #ident }).unwrap();
         if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extends")) {
             if !mode.is_object() {
-                throw!(extends, "#[extends(..) only supported by #[derive(Construct)].");
+                throw!(
+                    extends,
+                    "#[extends(..) only supported by #[derive(Construct)]."
+                );
             }
             mode.set_extends(extends.parse_args()?)?
         }
@@ -478,7 +505,7 @@ impl Constructable {
                 // Ok(())
             })?;
         }
-    
+
         let Data::Struct(input) = input.data else {
             throw!(input.ident, "#[derive(Construct)] only supports named structs. You can use `constructable!` for complex cases.");
         };
@@ -490,7 +517,8 @@ impl Constructable {
             };
             let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
                 ParamDefault::None
-            } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default")) {
+            } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default"))
+            {
                 let Ok(expr) = default.parse_args::<Expr>() else {
                     throw!(name, "Invalid expression for #[default(expr)].");
                 };
@@ -502,11 +530,13 @@ impl Constructable {
         }
         let body = None;
         Ok(Constructable {
-            ty, params, body, mode,
+            ty,
+            params,
+            body,
+            mode,
         })
     }
 }
-
 
 #[proc_macro]
 pub fn constructable(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -535,9 +565,8 @@ pub fn construct_implementations(_: proc_macro::TokenStream) -> proc_macro::Toke
     })
 }
 
-
 fn impl_all_extract_field(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         for idx in 0..size {
             let impl_extract = impl_extract_field(idx, size);
@@ -547,7 +576,7 @@ fn impl_all_extract_field(max_size: u8) -> TokenStream {
     out
 }
 fn impl_all_add_to_params(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         for idx in 0..size {
             let impl_add_to_params = impl_add_to_params(idx, size);
@@ -557,7 +586,7 @@ fn impl_all_add_to_params(max_size: u8) -> TokenStream {
     out
 }
 fn impl_all_defined(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         let defined = impl_defined(size);
         out = quote! { #out #defined }
@@ -565,11 +594,11 @@ fn impl_all_defined(max_size: u8) -> TokenStream {
     out
 }
 fn impl_all_extracts(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         let extractable = impl_extractable(size);
         out = quote! { #out #extractable };
-        for defined in 0..size + 1{
+        for defined in 0..size + 1 {
             let extract = impl_extract(defined, size);
             out = quote! { #out #extract };
         }
@@ -577,7 +606,7 @@ fn impl_all_extracts(max_size: u8) -> TokenStream {
     out
 }
 fn impl_all_mixed(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         for left in 0..size + 1 {
             let right = size - left;
@@ -599,12 +628,12 @@ fn impl_all_mixed(max_size: u8) -> TokenStream {
 /// }
 /// ```
 fn impl_all_as_params(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
-    for size in 0..max_size+1 {
-        let mut ts = quote! { };
-        let mut ds = quote! { };
-        let mut us = quote! { };
-        let mut ps = quote! { };
+    let mut out = quote! {};
+    for size in 0..max_size + 1 {
+        let mut ts = quote! {};
+        let mut ds = quote! {};
+        let mut us = quote! {};
+        let mut ps = quote! {};
         for i in 0..size {
             let ti = format_ident!("T{i}");
             ts = quote! { #ts #ti, };
@@ -619,19 +648,19 @@ fn impl_all_as_params(max_size: u8) -> TokenStream {
                 fn as_params() -> Self::Undefined {
                     Params(( #ps ))
                 }
-            }    
+            }
         }
     }
     out
 }
 
 fn impl_all_flattern(max_depth: u8) -> TokenStream {
-    let mut out = quote! { };
-    for depth in 1..max_depth+1 {
-        let mut ts = quote! { };
-        let mut cstr = quote! { };
+    let mut out = quote! {};
+    for depth in 1..max_depth + 1 {
+        let mut ts = quote! {};
+        let mut cstr = quote! {};
         let mut ns = quote! { () };
-        let mut vs = quote! { };
+        let mut vs = quote! {};
         let mut dcs = quote! { _ };
         for i in 0..depth {
             let ti = format_ident!("T{i}");
@@ -653,7 +682,7 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
             ns = quote! { (#tr, #ns) };
             dcs = quote! { (#pr, #dcs) };
         }
-        out = quote! { #out 
+        out = quote! { #out
             impl<#cstr> Flattern for #ns {
                 type Output = (#ts);
                 fn flattern(self) -> Self::Output {
@@ -678,8 +707,8 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
 fn impl_extract_field(idx: u8, size: u8) -> TokenStream {
     let ti = format_ident!("T{idx}");
     let fi = quote! { F<#idx, #ti> };
-    let mut gin = quote! { };
-    let mut gout = quote! { };
+    let mut gin = quote! {};
+    let mut gout = quote! {};
     for i in 0..size {
         let ai = format_ident!("A{i}");
         if i == idx {
@@ -690,7 +719,7 @@ fn impl_extract_field(idx: u8, size: u8) -> TokenStream {
         gout = quote! { #gout #ai, };
     }
 
-    quote! { 
+    quote! {
         impl<#ti, #gin> ExtractField<#fi, #ti> for Params<(#gout)> {
             fn field(&self, _: &Field<#ti>) -> #fi {
                 F::<#idx, #ti>(PhantomData)
@@ -726,12 +755,12 @@ fn impl_add_to_params(idx: u8, size: u8) -> TokenStream {
     let ti = format_ident!("T{idx}");
     let di = quote! { D<#idx, #ti> };
     let ui = quote! { U<#idx, #ti> };
-    let mut gin = quote! { };
-    let mut pundef = quote! { };
-    let mut pdef = quote! { };
-    let mut pout = quote! { };
-    let mut dcs = quote! { };
-    let mut vls = quote! { };
+    let mut gin = quote! {};
+    let mut pundef = quote! {};
+    let mut pdef = quote! {};
+    let mut pout = quote! {};
+    let mut dcs = quote! {};
+    let mut vls = quote! {};
     for i in 0..size {
         if i == idx {
             pundef = quote! { #pundef #ui, };
@@ -769,7 +798,6 @@ fn impl_add_to_params(idx: u8, size: u8) -> TokenStream {
     }
 }
 
-
 /// ```ignore
 /// impl<T0, T1> Extractable for (T0, T1) {
 ///     type Input = (D<0, T0>, D<1, T1>);
@@ -779,7 +807,7 @@ fn impl_add_to_params(idx: u8, size: u8) -> TokenStream {
 ///         (p0.0, p1.0)
 ///     }
 /// }
-/// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Params<(T0, T1, T2, T3)> 
+/// impl<T0, T1, T2, T3, E: Extractable<Input = (T0, T1)>> ExtractParams<2, E> for Params<(T0, T1, T2, T3)>
 /// where
 ///     T2: Shift<0>,
 ///     T3: Shift<1>,
@@ -796,10 +824,10 @@ fn impl_add_to_params(idx: u8, size: u8) -> TokenStream {
 /// }
 /// ```
 fn impl_extractable(size: u8) -> TokenStream {
-    let mut ein = quote! { };
-    let mut edef = quote! { };
-    let mut eout = quote! { };
-    let mut dcstr = quote! { };
+    let mut ein = quote! {};
+    let mut edef = quote! {};
+    let mut eout = quote! {};
+    let mut dcstr = quote! {};
 
     for i in 0..size {
         let ti = format_ident!("T{i}");
@@ -821,14 +849,14 @@ fn impl_extractable(size: u8) -> TokenStream {
     }
 }
 fn impl_extract(defined: u8, size: u8) -> TokenStream {
-    let mut ein = quote! { };
-    let mut pin = quote! { };
-    let mut pfor = quote! { };
-    let mut pcstr = quote! { };
-    let mut trest = quote! { };
-    let mut pdcstr = quote! { };
-    let mut pout = quote! { };
-    let mut pparams = quote! { };
+    let mut ein = quote! {};
+    let mut pin = quote! {};
+    let mut pfor = quote! {};
+    let mut pcstr = quote! {};
+    let mut trest = quote! {};
+    let mut pdcstr = quote! {};
+    let mut pout = quote! {};
+    let mut pparams = quote! {};
 
     for i in 0..size {
         let ti = format_ident!("T{i}");
@@ -847,7 +875,7 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
         pdcstr = quote! { #pdcstr #pi, };
     }
     quote! {
-        impl<#pin E: Extractable<Input = (#ein)>> ExtractParams<#defined, E> for Params<(#pin)> 
+        impl<#pin E: Extractable<Input = (#ein)>> ExtractParams<#defined, E> for Params<(#pin)>
         where #pcstr
         {
             type Value = E::Output;
@@ -874,11 +902,11 @@ fn impl_extract(defined: u8, size: u8) -> TokenStream {
 //     }
 // }
 fn impl_defined(size: u8) -> TokenStream {
-    let mut gin = quote! { };
-    let mut gout = quote! { };
-    let mut pout = quote! { };
-    let mut dcstr = quote! { };
-    let mut vals = quote! { };
+    let mut gin = quote! {};
+    let mut gout = quote! {};
+    let mut pout = quote! {};
+    let mut dcstr = quote! {};
+    let mut vals = quote! {};
     for i in 0..size {
         let ti = format_ident!("T{i}");
         let pi = format_ident!("p{i}");
@@ -888,7 +916,7 @@ fn impl_defined(size: u8) -> TokenStream {
         dcstr = quote! { #dcstr #pi, };
         vals = quote! { #vals D::<#i, _>(#pi.extract_value()), }
     }
-    quote! { 
+    quote! {
         impl<#gin> Params<(#gout)> {
             pub fn defined(self) -> Params<(#pout)> {
                 let (#dcstr) = self.0;
@@ -897,7 +925,6 @@ fn impl_defined(size: u8) -> TokenStream {
         }
     }
 }
-
 
 /// ```ignore
 /// impl<L0, R0, R1> Mixed<(D<0, R0>, D<1, R1>)> for (D<0, L0>,) {
@@ -912,15 +939,15 @@ fn impl_defined(size: u8) -> TokenStream {
 /// }
 /// ```
 fn impl_mixed(left: u8, right: u8) -> TokenStream {
-    let mut ls = quote! { };        // L0,
-    let mut rs = quote! { };        // R0, R1,
-    let mut dls = quote! { };       // D<0, L0>,
-    let mut drs = quote! { };       // D<0, R0>, D<1, R1>,
-    let mut lvs = quote! { };       // l0,
-    let mut rvs = quote! { };       // r0, r1,
-    let mut shift = quote! { };     // let r0 = D::<0, _>(r0.0);
-                                    // let r1 = D::<1, _>(r1.0);
-    let mut output = quote! { };    // D<0, L0>, D<1, R0>, D<2, R1>
+    let mut ls = quote! {}; // L0,
+    let mut rs = quote! {}; // R0, R1,
+    let mut dls = quote! {}; // D<0, L0>,
+    let mut drs = quote! {}; // D<0, R0>, D<1, R1>,
+    let mut lvs = quote! {}; // l0,
+    let mut rvs = quote! {}; // r0, r1,
+    let mut shift = quote! {}; // let r0 = D::<0, _>(r0.0);
+                               // let r1 = D::<1, _>(r1.0);
+    let mut output = quote! {}; // D<0, L0>, D<1, R0>, D<2, R1>
     for i in 0..left.max(right) {
         let li = format_ident!("L{i}");
         let ri = format_ident!("R{i}");
@@ -938,7 +965,7 @@ fn impl_mixed(left: u8, right: u8) -> TokenStream {
             shift = quote! { #shift let #rv = D::<#i, _>(#rv.0); }
         }
     }
-    for i in 0..left+right {
+    for i in 0..left + right {
         let ti = if i < left {
             format_ident!("L{i}")
         } else {

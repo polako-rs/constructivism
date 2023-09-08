@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
 use constructivist::*;
-use constructivist_core::Methods;
 use constructivist_core::Construct;
+use constructivist_core::Methods;
 use constructivist_core::MutableMethod;
 pub struct World;
 
@@ -10,7 +10,7 @@ pub struct Entity(usize);
 
 #[derive(Construct)]
 pub struct Node {
-    position: (f32, f32)
+    position: (f32, f32),
 }
 
 impl Node {
@@ -31,21 +31,17 @@ pub trait NodeMethods {
 
 impl<M: Methods<Node>> NodeMethods for M {
     fn spawn_child(&self) -> StaticMethod<Node, (&mut World, Entity), Entity> {
-        StaticMethod(PhantomData, |(world, this)| {
-            Node::spawn_child(world, this)
-        })
+        StaticMethod(PhantomData, |(world, this)| Node::spawn_child(world, this))
     }
     fn translate(&self) -> MutableMethod<Node, ((f32, f32),), ()> {
-        MutableMethod(|this, (tr,)| {
-            this.translate(tr)
-        })
+        MutableMethod(|this, (tr,)| this.translate(tr))
     }
 }
 
 #[derive(Construct)]
 #[extends(Node)]
 pub struct Rect {
-    size: (f32, f32)
+    size: (f32, f32),
 }
 
 impl Rect {
@@ -55,27 +51,18 @@ impl Rect {
     }
 }
 
-
 pub trait RectMethods {
-    fn grow(&self) -> MutableMethod<Rect, ((f32,f32),), ()>;
+    fn grow(&self) -> MutableMethod<Rect, ((f32, f32),), ()>;
 }
 
 impl<M: Methods<Rect>> RectMethods for M {
-    fn grow(&self) -> MutableMethod<Rect, ((f32,f32),), ()> {
-        MutableMethod(|this, (add,)| {
-            this.grow(add)
-        })
+    fn grow(&self) -> MutableMethod<Rect, ((f32, f32),), ()> {
+        MutableMethod(|this, (add,)| this.grow(add))
     }
 }
 
-
-
-
 fn main() {
-
-    let (mut rect, mut node) = construct!(Rect {
-        size: (10., 10.)
-    });
+    let (mut rect, mut node) = construct!(Rect { size: (10., 10.) });
 
     let methods = <<Rect as Construct>::Methods as Singleton>::instance();
     let _ = methods.spawn_child().call((&mut World, Entity(23)));

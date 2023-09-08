@@ -3,20 +3,19 @@ use std::marker::PhantomData;
 use constructivist_macro_support::*;
 
 pub mod traits {
-    pub use super::ConstructItem;
-    pub use super::A;
-    pub use super::Singleton;
-    pub use super::ExtractField;
     pub use super::AsField;
+    pub use super::ConstructItem;
+    pub use super::ExtractField;
     pub use super::ExtractValue;
     pub use super::Flattern;
+    pub use super::Singleton;
+    pub use super::A;
 
-    pub use super::New;
     pub use super::Construct;
-    pub use super::Mixin;
     pub use super::Mixed;
+    pub use super::Mixin;
+    pub use super::New;
 }
-
 
 pub trait ConstructItem {
     type Params: Extractable;
@@ -30,8 +29,7 @@ pub trait Construct: ConstructItem {
     type MixedParams: Extractable;
     type Hierarchy;
     type ExpandedParams: Extractable;
-    
-    
+
     fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
@@ -44,7 +42,6 @@ pub trait Mixin: ConstructItem {
     type Methods<T: Singleton + 'static>: Singleton;
 }
 
-
 #[macro_export]
 macro_rules! construct {
     (@field $fields:ident $params:ident $f:ident $e:expr) => {
@@ -55,7 +52,7 @@ macro_rules! construct {
         $params.validate(&param)();
     };
     (@fields $fields:ident $params:ident) => {
-        
+
     };
     (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
         construct!(@field $fields $params $f $e)
@@ -94,8 +91,8 @@ macro_rules! construct {
 
 impl ConstructItem for () {
     type Params = ();
-    
-    fn construct_item(_: Self::Params)-> Self {
+
+    fn construct_item(_: Self::Params) -> Self {
         ()
     }
 }
@@ -105,26 +102,22 @@ impl Construct for () {
     type Methods = ();
     type Extends = ();
     type Hierarchy = ();
-    // type Mixed = ();
     type MixedParams = ();
     type ExpandedParams = ();
-    
     fn construct<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
         Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
-    > {
+    >{
         ()
     }
-
 }
 
 pub struct Params<T>(T);
 impl<T> Params<T> {
     pub fn validate<P>(&self, _: P) -> fn() -> () {
-        || { }
+        || {}
     }
-
 }
 
 // impl<C: Construct> Params<<<C::ExpandedParams as Extractable>::Input as AsParams>::Undefined> {
@@ -158,15 +151,13 @@ impl<N, T> Param<N, T> {
 pub trait New<T> {
     fn new(from: T) -> Self;
 }
-impl<N: New<T>, T> Param<N,T> {
+impl<N: New<T>, T> Param<N, T> {
     pub fn value(&self, value: T) -> N {
         N::new(value)
     }
-} 
-
-pub trait Methods<Protocol: ?Sized> {
-
 }
+
+pub trait Methods<Protocol: ?Sized> {}
 
 pub struct MutableMethod<This, In, Out>(pub fn(this: &mut This, input: In) -> Out);
 impl<This, In, Out> MutableMethod<This, In, Out> {
@@ -188,9 +179,6 @@ impl<This, In, Out> StaticMethod<This, In, Out> {
     }
 }
 
-
-
-
 pub struct Field<T>(PhantomData<T>);
 impl<T> Field<T> {
     pub fn new() -> Self {
@@ -202,7 +190,7 @@ pub struct D<const I: u8, T>(pub T);
 pub struct U<const I: u8, T>(pub PhantomData<T>);
 pub struct F<const I: u8, T>(PhantomData<T>);
 
-pub trait A<const I: u8, T> { }
+pub trait A<const I: u8, T> {}
 
 pub trait Singleton {
     fn instance() -> &'static Self;
@@ -232,14 +220,18 @@ impl Extractable for () {
     }
 }
 
-pub trait Mixed<Right> where Self: Sized {
+pub trait Mixed<Right>
+where
+    Self: Sized,
+{
     type Output;
     fn split(mixed: Self::Output) -> (Self, Right);
 }
 pub struct Mix<L, R>(PhantomData<(L, R)>);
 
-impl<O: AsParams, L: Extractable, R: Extractable> Extractable for Mix<L, R> where
-L::Input: Mixed<R::Input, Output = O>,
+impl<O: AsParams, L: Extractable, R: Extractable> Extractable for Mix<L, R>
+where
+    L::Input: Mixed<R::Input, Output = O>,
 {
     type Input = O;
     type Output = (L::Output, R::Output);
@@ -249,12 +241,7 @@ L::Input: Mixed<R::Input, Output = O>,
     }
 }
 
-
-
-
-
-
-pub trait ExtractParams<const S: u8, T> { 
+pub trait ExtractParams<const S: u8, T> {
     type Value;
     type Rest;
     fn extract_params(self) -> (Self::Value, Self::Rest);
@@ -267,8 +254,7 @@ pub trait ExtractParams<const S: u8, T> {
 //         ((), Params(()))
 //     }
 // }
-impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Params<()>
-{
+impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Params<()> {
     type Value = E::Output;
     type Rest = Params<()>;
     fn extract_params(self) -> (Self::Value, Self::Rest) {
@@ -276,12 +262,14 @@ impl<E: Extractable<Input = ()>> ExtractParams<0, E> for Params<()>
     }
 }
 
-
 pub trait ExtractField<F, T> {
     fn field(&self, f: &Field<T>) -> F;
 }
 
-pub trait AsField where Self: Sized {
+pub trait AsField
+where
+    Self: Sized,
+{
     fn as_field() -> Field<Self>;
 }
 
@@ -289,7 +277,6 @@ pub trait Shift<const I: u8> {
     type Target;
     fn shift(self) -> Self::Target;
 }
-
 
 pub trait ExtractValue {
     type Value;
@@ -301,16 +288,14 @@ pub trait Flattern {
     fn flattern(self) -> Self::Output;
 }
 
-
 impl<const I: u8, T> F<I, T> {
     pub fn define(self, value: T) -> D<I, T> {
         D::<I, T>(value)
     }
 }
 
-
-impl<const I: u8, T> A<I, T> for D<I, T> { }
-impl<const I: u8, T> A<I, T> for U<I, T> { }
+impl<const I: u8, T> A<I, T> for D<I, T> {}
+impl<const I: u8, T> A<I, T> for U<I, T> {}
 
 impl<const I: u8, const J: u8, T> Shift<J> for D<I, T> {
     type Target = D<J, T>;
@@ -356,4 +341,4 @@ pub trait AsParams {
     fn as_params() -> Self::Undefined;
 }
 
-construct_implementations! { }
+construct_implementations! {}
