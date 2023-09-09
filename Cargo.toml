@@ -1,5 +1,5 @@
 [package]
-name = "constructivist"
+name = "constructivism"
 version = "0.0.1"
 edition = "2021"
 
@@ -7,11 +7,10 @@ edition = "2021"
 
 [workspace]
 members = [
-    "crates/constructivist_core",
-    "crates/constructivist_macro_support",
+    "crates/constructivism_macro",
+    "crates/constructivism_macro",
 ]
 
 [dependencies]
-constructivist_core = { path = "crates/constructivist_core" }
-constructivist_macro_support = { path = "crates/constructivist_macro_support" }
+constructivism_macro = { path = "crates/constructivism_macro" }
 tuple_utils = "0.4.0"

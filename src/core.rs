@@ -1,6 +1,5 @@
+use constructivism_macro::implement_constructivism_core; /* @constructivist-no-expose */
 use std::marker::PhantomData;
-
-use constructivist_macro_support::*;
 
 pub mod traits {
     pub use super::AsField;
@@ -234,6 +233,13 @@ where
     type Output;
     fn split(mixed: Self::Output) -> (Self, Right);
 }
+
+impl Mixed<()> for () {
+    type Output = ();
+    fn split(mixed: Self::Output) -> (Self, ()) {
+        ((), ())
+    }
+}
 pub struct Mix<L, R>(PhantomData<(L, R)>);
 
 impl<O: AsParams, L: Extractable, R: Extractable> Extractable for Mix<L, R>
@@ -348,4 +354,4 @@ pub trait AsParams {
     fn as_params() -> Self::Undefined;
 }
 
-construct_implementations! {}
+implement_constructivism_core!(16);

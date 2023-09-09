@@ -1,5 +1,5 @@
 [package]
-name = "constructivist_macro_support"
+name = "constructivism_macro"
 version = "0.0.1"
 edition = "2021"
 
@@ -13,3 +13,4 @@ proc-macro2 = "1.0.66"
 quote = "1.0.33"
 syn = { version = "2.0.29", features = ["full"]}
 toml = "0.7.6"
+constructivist = { path = "../constructivist" }

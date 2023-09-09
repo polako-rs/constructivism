@@ -1,12 +1,12 @@
 ### About
-`constructivist` is a crate that allows to construct complex structures within single call. It is also charged with simple compile-time meta-inheritance model with mixins.
+`constructivism_macro` is a crate that allows to construct complex structures within single call. It is also charged with simple compile-time meta-inheritance model with mixins.
 
 It is at very early proof-of-cocept stage for now. But with bright future.
 
 ### [Tutorial](./examples/tutorial.rs)
-0. Use constructivist
+0. Use constructivism_macro
 ```rust
-use constructivist::*;
+use constructivism_macro::*;
 ```
 
 1. You can derive `Construct` now
@@ -201,7 +201,7 @@ fn step_14() {
 let (radio, base) = construct!(*Radio { ... });
 ```
 
-- expose constructivist as macro-library, so it can be injected into your own namespace
+- expose constructivism_macro as macro-library, so it can be injected into your own namespace
 
 - doc-based bindgen for third-parti libraries (not right now)
 
@@ -238,7 +238,7 @@ I didn't perform any stress-tests. It should run pretty fast: there is no heap a
 
 ### License
 
-The `constructivist` is dual-licensed under either:
+The `constructivism_macro` is dual-licensed under either:
 
 - MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))

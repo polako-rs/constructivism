@@ -1,5 +1,4 @@
-#[cfg(test)]
-mod tests;
+pub mod core;
 
-pub use constructivist_core::*;
-pub use constructivist_macro_support::*;
+pub use crate::core::*;
+pub use constructivism_macro::*;

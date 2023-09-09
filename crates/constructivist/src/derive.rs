@@ -5,36 +5,12 @@ use syn::{
     FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, Token, Type,
 };
 
-use crate::synext::TypeExt;
+use crate::exts::TypeExt;
 
 macro_rules! throw {
     ($loc:expr, $msg:expr) => {
         return Err(syn::Error::new($loc.span(), $msg));
     };
-}
-
-pub fn lib() -> TokenStream {
-    let lib = quote! { ::constructivist_core };
-    let Some(manifest_path) = std::env::var_os("CARGO_MANIFEST_DIR")
-        .map(std::path::PathBuf::from)
-        .map(|mut path| { path.push("Cargo.toml"); path })
-        else { return lib };
-    let Ok(manifest) = std::fs::read_to_string(&manifest_path) else {
-        return lib
-    };
-    let Ok(manifest) = toml::from_str::<toml::map::Map<String, toml::Value>>(&manifest) else {
-        return lib
-    };
-
-    let Some(pkg) = manifest.get("package") else { return lib };
-    let Some(pkg) = pkg.as_table() else { return lib };
-    let Some(pkg) = pkg.get("name") else { return lib };
-    let Some(pkg) = pkg.as_str() else { return lib };
-    if pkg.trim() == "constructivist" {
-        quote! { ::constructivist_core }
-    } else {
-        lib
-    }
 }
 
 enum ParamType {

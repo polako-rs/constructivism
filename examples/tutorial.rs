@@ -1,4 +1,4 @@
-use constructivist::*;
+use constructivism::*;
 
 // 1. You can derive `Construct`
 #[derive(Construct)]

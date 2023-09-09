@@ -1,10 +1,9 @@
+use std::str::FromStr;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-const CONSTRUCT_SIZE: u8 = 16;
-
-pub fn implement_construct_core() -> TokenStream {
-    let max_size = CONSTRUCT_SIZE;
+pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
     let extract_field_impls = impl_all_extract_field(max_size);
     let add_to_params = impl_all_add_to_params(max_size);
     let defined = impl_all_defined(max_size);
@@ -20,6 +19,21 @@ pub fn implement_construct_core() -> TokenStream {
         #as_params
         #mixed
         #flattern
+    }
+}
+
+pub fn implement_constructivism(_: u8) -> TokenStream {
+    let source = include_str!("../../../src/core.rs");
+    let source = source
+        .lines()
+        .filter(|l| !l.contains("@constructivist-no-expose"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let Ok(core) = TokenStream::from_str(source.as_str()) else {
+        return quote! { compile_error! ("Coudn't parse constructivism::core")}
+    };
+    quote! {
+        #core
     }
 }
 
