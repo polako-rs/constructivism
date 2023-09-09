@@ -89,6 +89,13 @@ macro_rules! construct {
     };
 }
 
+#[macro_export]
+macro_rules! methods {
+    ($t:ty) => {
+        <<$t as $crate::Construct>::Methods as $crate::Singleton>::instance()
+    };
+}
+
 impl ConstructItem for () {
     type Params = ();
 

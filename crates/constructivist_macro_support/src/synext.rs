@@ -1,17 +1,27 @@
 use proc_macro2::Ident;
-use syn::Type;
+use quote::quote;
+use syn::{spanned::Spanned, Type};
 
 pub trait TypeExt {
-    fn as_ident(&self) -> Option<&Ident>;
+    fn as_ident(&self) -> syn::Result<Ident>;
 }
 impl TypeExt for Type {
-    fn as_ident(&self) -> Option<&Ident> {
+    fn as_ident(&self) -> syn::Result<Ident> {
         let Type::Path(path) = &self else {
-            return None;
+            return Err(syn::Error::new(self.span(), format!(
+                "Can't extract ident from type {}",
+                quote!({#self}).to_string()
+            )))
         };
         if path.path.segments.is_empty() {
-            return None;
+            return Err(syn::Error::new(
+                self.span(),
+                format!(
+                    "Can't extract ident from type {}",
+                    quote!({#self}).to_string()
+                ),
+            ));
         }
-        Some(&path.path.segments.last().unwrap().ident)
+        Ok(path.path.segments.last().unwrap().ident.clone())
     }
 }

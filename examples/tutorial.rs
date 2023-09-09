@@ -131,9 +131,21 @@ fn step_13() {
     assert_eq!(radio.value, "option_0".to_string());
 }
 
-// TODO: docstring bypassing
+// 14. You can implement static methods. It will be accesable for all inherited items.
+// Implement methods for Node
+#[construct_methods]
+impl Node {
+    #[allow(unused_variables)]
+    pub fn add_child(entity: Entity) {}
+}
 
-// TODO: methods and method resolve order in the inheritance tree.
+fn step_14() {
+    // It is accessable from Button as well as from everything
+    // that extends Node
+    methods!(Button).add_child(Entity(23));
+}
+
+// TODO: docstring bypassing
 
 // TODO: mixable! { ... }
 
@@ -172,4 +184,5 @@ fn main() {
     step_09();
     step_12();
     step_13();
+    step_14();
 }

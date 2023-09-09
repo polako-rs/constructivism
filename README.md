@@ -169,12 +169,27 @@ fn step_13() {
     assert_eq!(radio.value, "option_0".to_string());
 }
 ```
+14. You can implement static methods. It will be accesable for all inherited items.
+```rust
+// Implement methods for Node
+#[construct_methods]
+impl Node {
+    #[allow(unused_variables)]
+    pub fn add_child(entity: Entity) {
+    }
+}
+
+fn step_14() {
+    // It is accessable from Button as well as from
+    // any item that extends Node directly or indirectly
+    methods!(Button).add_child(Entity(23));
+}
+```
 
 ### Upcoming features
 
 - docstring bypassing
 
-- methods and method resolve order in the inheritance tree (there is proof of concepe, just need some helper macros)
 - `mixable! { ... }`, just like `constructable! { ... }`
 
 - union props

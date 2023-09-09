@@ -1,6 +1,9 @@
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident, ToTokens};
-use syn::{Type, parse::Parse, Token, bracketed, Expr, Ident, spanned::Spanned, parenthesized, DeriveInput, Data};
+use quote::{format_ident, quote, ToTokens};
+use syn::{
+    bracketed, parenthesized, parse::Parse, spanned::Spanned, Attribute, Data, DeriveInput, Expr,
+    FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, Token, Type,
+};
 
 use crate::synext::TypeExt;
 
@@ -75,7 +78,6 @@ impl Parse for Param {
         Ok(Param { name, ty, default })
     }
 }
-
 
 pub enum ConstructMode {
     Mixin,
@@ -174,11 +176,9 @@ impl Parse for Constructable {
 }
 
 impl Constructable {
-    pub fn build(&self, lib: TokenStream) -> TokenStream {
+    pub fn build(&self, lib: TokenStream) -> syn::Result<TokenStream> {
         let ty = &self.ty;
-        let Some(type_ident) = ty.as_ident() else {
-            return quote!(compile_error!("Can't implement ConstructItem for {}", stringify!(#ty)));
-        };
+        let type_ident = ty.as_ident()?;
         let mod_ident = format_ident!(
             // slider_construct
             "{}_construct",
@@ -192,7 +192,7 @@ impl Constructable {
         let mut fields_new = quote! {};
         for param in self.params.iter() {
             let ParamType::Single(param_ty) = &param.ty else {
-                return quote!(compile_error!("Union params not supported yet."))
+                throw!(ty, "Union params not supported yet.");
             };
             let ident = &param.name;
             param_values = quote! { #param_values #ident, };
@@ -270,11 +270,8 @@ impl Constructable {
             let mut deconstruct = quote! {};
             let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
             for mixin in mixins.iter().rev() {
-                let mixin_params = if let Some(ident) = mixin.as_ident() {
-                    format_ident!("{}_params", ident.to_string().to_lowercase())
-                } else {
-                    return quote!(compile_error!("Can't construct params ident"));
-                };
+                let mixin_params =
+                    format_ident!("{}_params", mixin.as_ident()?.to_string().to_lowercase());
                 if mixed_params.is_empty() {
                     mixed_params = quote! { <#mixin as ConstructItem>::Params, };
                     deconstruct = quote! { #mixin_params };
@@ -429,7 +426,7 @@ impl Constructable {
                 }
             },
         };
-        quote! {
+        Ok(quote! {
             mod #mod_ident {
                 use super::*;
                 #decls
@@ -444,8 +441,7 @@ impl Constructable {
             }
             #object
             #mixin
-
-        }
+        })
     }
 
     pub fn from_derive(input: DeriveInput, mut mode: ConstructMode) -> Result<Self, syn::Error> {
@@ -509,6 +505,116 @@ impl Constructable {
             params,
             body,
             mode,
+        })
+    }
+}
+
+#[derive(PartialEq)]
+pub enum MethodKind {
+    Static,
+}
+
+pub struct Argument {
+    pub attrs: Vec<Attribute>,
+    pub pat: TokenStream,
+    pub ty: Type,
+}
+
+pub struct Method {
+    pub ident: Ident,
+    pub kind: MethodKind,
+    pub input: Vec<Argument>,
+    pub output: Type,
+    pub attrs: Vec<Attribute>,
+}
+pub struct Methods {
+    pub ty: Type,
+    pub input: ItemImpl,
+    pub methods: Vec<Method>,
+}
+
+impl Methods {
+    pub fn from_input(input: ItemImpl) -> syn::Result<Self> {
+        let ty = *input.self_ty.clone();
+        let mut methods = vec![];
+        for item in input.items.iter() {
+            let ImplItem::Fn(ImplItemFn { sig, attrs, .. }) = item else {
+                throw!(item, "Only fn $method(...) supported");
+            };
+            let ident = sig.ident.clone();
+            let kind = MethodKind::Static;
+            let mut input = vec![];
+            for arg in sig.inputs.iter() {
+                match arg {
+                    FnArg::Receiver(this) => {
+                        throw!(this, "Only static methods supported yet");
+                    }
+                    FnArg::Typed(arg) => {
+                        let pat = &arg.pat;
+                        let ty = *arg.ty.clone();
+                        input.push(Argument {
+                            ty,
+                            pat: quote! { #pat },
+                            attrs: arg.attrs.clone(),
+                        });
+                    }
+                }
+            }
+            let output = match &sig.output {
+                ReturnType::Default => syn::parse2(quote! { () }).unwrap(),
+                ReturnType::Type(_, ty) => *ty.clone(),
+            };
+            methods.push(Method {
+                ident,
+                kind,
+                input,
+                output,
+                attrs: attrs.clone(),
+            })
+        }
+
+        Ok(Self { ty, methods, input })
+    }
+
+    pub fn build(&self, _lib: TokenStream) -> syn::Result<TokenStream> {
+        let ty = &self.ty;
+        let mod_ident = format_ident!(
+            "{}_construct",
+            self.ty.as_ident()?.to_string().to_lowercase()
+        );
+        let mut methods = quote! {};
+        for method in self.methods.iter() {
+            let ident = &method.ident;
+            let mut args_pass = quote! {};
+            let mut args_typed = quote! {};
+            if method.kind != MethodKind::Static {
+                throw!(ident, "Only static methods supported yet");
+            }
+            for arg in method.input.iter() {
+                let pat = &arg.pat;
+                let ty = &arg.ty;
+                for attr in arg.attrs.iter() {
+                    args_typed = quote! { #args_typed #attr }
+                }
+                args_typed = quote! { #args_typed #pat: #ty, };
+                args_pass = quote! { #args_pass #pat, };
+            }
+            let output = &method.output;
+            for attr in method.attrs.iter() {
+                methods = quote! { #methods #attr }
+            }
+            methods = quote! { #methods
+                pub fn #ident(&self, #args_typed) -> #output {
+                    <#ty>::#ident(#args_pass)
+                }
+            };
+        }
+        let input = &self.input;
+        Ok(quote! {
+            #input
+            impl #mod_ident::Methods {
+                #methods
+            }
         })
     }
 }
