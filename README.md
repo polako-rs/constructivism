@@ -186,6 +186,26 @@ fn step_14() {
 }
 ```
 
+15. You can check if construct extends other construct at any level with `Extends<T>` trait
+```rust
+fn takes_everything_that_extends_node<T: Extends<Node>>(_: T) { }
+fn step_15() {
+    let (button, input, rect, node) = construct!(Button { disabled: true });
+    takes_everything_that_extends_node(rect);
+    takes_everything_that_extends_node(button);
+
+    // won't compile: Extends<T> respects only Constructs, not Mixins
+    // takes_everything_that_extends_node(input);
+
+    // won't compile: Node doesn't extends Node
+    // takes_everything_that_extends_node(node);
+
+    assert_eq!(input.disabled, true);
+    assert_eq!(node.position.0, 0.);
+}
+```
+
+
 ### Upcoming features
 
 - docstring bypassing

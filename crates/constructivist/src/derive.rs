@@ -234,6 +234,11 @@ impl Constructable {
         };
 
         let object = if let ConstructMode::Construct { extends, mixins } = &self.mode {
+            let inheritance = if let Some(extends) = extends {
+                quote! { (#type_ident, <#extends as #lib::Construct>::Inheritance) }
+            } else {
+                quote! { (#type_ident, ()) }
+            };
             let extends = if let Some(extends) = extends {
                 quote! { #extends }
             } else {
@@ -277,17 +282,16 @@ impl Constructable {
                     #construct
                 )
             };
-
             quote! {
                 impl #lib::Construct for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
                     type Methods = #mod_ident::Methods;
                     type MixedParams = (#mixed_params);
-                    // type Hierarchy =  (Self, <Self::Extends as #lib::Construct>::Hierarchy);
                     type Hierarchy = (Self, #hierarchy);
-                    // type ExpandedParams = #lib::Mix<(#type_params), <Self::Extends as #lib::Construct>::ExpandedParams>;
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
+                    type Components = <Self::Hierarchy as #lib::Flattern>::Output;
+                    type Inheritance = #inheritance;
 
 
                     fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
@@ -297,11 +301,6 @@ impl Constructable {
                     > {
                         let (#deconstruct, rest) = params.extract_params();
                         #construct
-                        // let (args, rest) = params.extract_params();
-                        // (
-                        //     <Self as #lib::ConstructItem>::construct_item(args),
-                        //     <Self::Extends as #lib::Construct>::construct(rest)
-                        // )
                     }
                 }
             }
@@ -328,7 +327,6 @@ impl Constructable {
                 let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
                 let mut deref_methods = quote! { <#extends as #lib::Construct>::Methods };
                 for mixin in mixins.iter() {
-                    // throw!(mixin, "got mixin");
                     deref_fields = quote! { <#mixin as #lib::Mixin>::Fields<#deref_fields> };
                     deref_methods = quote! { <#mixin as #lib::Mixin>::Methods<#deref_methods> };
                 }

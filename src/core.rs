@@ -9,7 +9,6 @@ pub mod traits {
     pub use super::Flattern;
     pub use super::Singleton;
     pub use super::A;
-
     pub use super::Construct;
     pub use super::Mixed;
     pub use super::Mixin;
@@ -26,8 +25,10 @@ pub trait Construct: ConstructItem {
     type Fields: Singleton;
     type Methods: Singleton;
     type MixedParams: Extractable;
-    type Hierarchy;
     type ExpandedParams: Extractable;
+    type Hierarchy: Flattern;
+    type Components;
+    type Inheritance;
 
     fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedParams,
@@ -44,7 +45,7 @@ pub trait Mixin: ConstructItem {
 #[macro_export]
 macro_rules! construct {
     (@field $fields:ident $params:ident $f:ident $e:expr) => {
-        let param = &$fields.$f;
+        let param: &$crate::Param<_, _> = &$fields.$f;
         let field = param.field();
         let value = $params.field(&field).define(param.value($e.into()));
         let $params = $params + value;
@@ -95,6 +96,11 @@ macro_rules! methods {
     };
 }
 
+pub trait Is<T: Construct> { }
+pub struct Meta<T>(PhantomData<T>);
+impl<T: Construct> Is<T> for Meta<T> { }
+impl<T: Construct> Is<T> for T where Meta<T>: Is<T> { }
+
 impl ConstructItem for () {
     type Params = ();
 
@@ -110,6 +116,8 @@ impl Construct for () {
     type Hierarchy = ();
     type MixedParams = ();
     type ExpandedParams = ();
+    type Inheritance = ();
+    type Components = <Self::Hierarchy as Flattern>::Output;
     fn construct<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
@@ -126,11 +134,12 @@ impl<T> Params<T> {
     }
 }
 
-// impl<C: Construct> Params<<<C::ExpandedParams as Extractable>::Input as AsParams>::Undefined> {
-//     pub fn for_construct_item() -> Self {
 
-//     }
-// }
+
+pub trait Extends<T: Construct> { }
+impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<EInheritance>, EInheritance> Extends<E> for T { }
+
+pub trait Contains<T> { }
 
 pub struct ParamConflict<N>(PhantomData<N>);
 impl<N> ParamConflict<N> {
@@ -236,7 +245,7 @@ where
 
 impl Mixed<()> for () {
     type Output = ();
-    fn split(mixed: Self::Output) -> (Self, ()) {
+    fn split(_: Self::Output) -> (Self, ()) {
         ((), ())
     }
 }
@@ -299,6 +308,12 @@ pub trait ExtractValue {
 pub trait Flattern {
     type Output;
     fn flattern(self) -> Self::Output;
+}
+impl Flattern for () {
+    type Output = ();
+    fn flattern(self) -> Self::Output {
+        ()
+    }
 }
 
 impl<const I: u8, T> F<I, T> {

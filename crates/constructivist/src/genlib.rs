@@ -11,6 +11,7 @@ pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
     let mixed = impl_all_mixed(max_size);
     let as_params = impl_all_as_params(max_size);
     let flattern = impl_all_flattern(max_size);
+    let contains = impl_all_contains(16);
     quote! {
         #extract_field_impls
         #add_to_params
@@ -19,6 +20,7 @@ pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
         #as_params
         #mixed
         #flattern
+        #contains
     }
 }
 
@@ -163,6 +165,15 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
                 }
             }
         }
+    }
+    out
+}
+
+fn impl_all_contains(max_size: u8) -> TokenStream {
+    let mut out = quote! { };
+    for size in 1..max_size + 1 {
+        let contains = impl_contains(size);
+        out = quote! { #out #contains }
     }
     out
 }
@@ -455,4 +466,31 @@ fn impl_mixed(left: u8, right: u8) -> TokenStream {
             }
         }
     }
+}
+// output for impl_contains(4)
+// impl<T0, T1, T2, T3> Contains<()> for (T0, (T1, (T2, (T3, ())))) { }
+// impl<T0, T1, T2, T3> Contains<(T3, ())> for (T0, (T1, (T2, (T3, ())))) { }
+// impl<T0, T1, T2, T3> Contains<(T2, (T3, ()))> for (T0, (T1, (T2, (T3, ())))) { }
+// impl<T0, T1, T2, T3> Contains<(T1, (T2, (T3, ())))> for (T0, (T1, (T2, (T3, ())))) { }
+fn impl_contains(size: u8) -> TokenStream {
+    let mut out = quote! { };
+    let mut tfor = quote! { () };
+    let mut tin = quote! { };
+    for i in 0..size {
+        let ti = format_ident!("T{}", size - i - 1);
+        tfor = quote! { (#ti, #tfor) };
+        tin = quote! { #ti, #tin };
+    }
+    for impl_size in 0..size {
+        let mut cnt = quote! { () };
+        for i in 0..impl_size {
+            let ti = format_ident!("T{}", size - i - 1);
+            cnt = quote! { (#ti, #cnt) }
+        }
+        out = quote! { #out
+            impl<#tin> Contains<#cnt> for #tfor { }
+        }
+    }
+    out
+
 }
