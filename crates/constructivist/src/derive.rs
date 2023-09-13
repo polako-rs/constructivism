@@ -247,7 +247,7 @@ impl Constructable {
 
             let mut mixed_params = quote! {};
             let mut expanded_params = quote! { <Self::Extends as #lib::Construct>::ExpandedParams };
-            let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::Hierarchy };
+            let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::NestedComponents };
             let mut deconstruct = quote! {};
             let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
             for mixin in mixins.iter().rev() {
@@ -288,13 +288,13 @@ impl Constructable {
                     type Fields = #mod_ident::Fields;
                     type Methods = #mod_ident::Methods;
                     type MixedParams = (#mixed_params);
-                    type Hierarchy = (Self, #hierarchy);
+                    type NestedComponents = (Self, #hierarchy);
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
-                    type Components = <Self::Hierarchy as #lib::Flattern>::Output;
+                    type Components = <Self::NestedComponents as #lib::Flattern>::Output;
                     type Inheritance = #inheritance;
 
 
-                    fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: #lib::ExtractParams<
+                    fn construct<P, const I: u8>(params: P) -> Self::NestedComponents where P: #lib::ExtractParams<
                         I, Self::MixedParams,
                         Value = <Self::MixedParams as #lib::Extractable>::Output,
                         Rest = <<<Self::Extends as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined

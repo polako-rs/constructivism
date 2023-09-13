@@ -26,11 +26,11 @@ pub trait Construct: ConstructItem {
     type Methods: Singleton;
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
-    type Hierarchy: Flattern;
+    type NestedComponents: Flattern;
     type Components;
     type Inheritance;
 
-    fn construct<P, const I: u8>(params: P) -> Self::Hierarchy where P: ExtractParams<
+    fn construct<P, const I: u8>(params: P) -> Self::NestedComponents where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
         Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
@@ -113,12 +113,12 @@ impl Construct for () {
     type Fields = ();
     type Methods = ();
     type Extends = ();
-    type Hierarchy = ();
+    type NestedComponents = ();
     type MixedParams = ();
     type ExpandedParams = ();
     type Inheritance = ();
-    type Components = <Self::Hierarchy as Flattern>::Output;
-    fn construct<P, const I: u8>(_: P) -> Self::Hierarchy where P: ExtractParams<
+    type Components = <Self::NestedComponents as Flattern>::Output;
+    fn construct<P, const I: u8>(_: P) -> Self::NestedComponents where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
         Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
