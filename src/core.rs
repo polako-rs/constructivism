@@ -23,7 +23,7 @@ pub trait ConstructItem {
 pub trait Construct: ConstructItem {
     type Extends: Construct;
     type Fields: Singleton;
-    type Methods: Singleton;
+    type Protocols: Singleton;
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
     type NestedComponents: Flattern;
@@ -39,7 +39,7 @@ pub trait Construct: ConstructItem {
 
 pub trait Mixin: ConstructItem {
     type Fields<T: Singleton + 'static>: Singleton;
-    type Methods<T: Singleton + 'static>: Singleton;
+    type Protocols<T: Singleton + 'static>: Singleton;
 }
 
 #[macro_export]
@@ -90,9 +90,9 @@ macro_rules! construct {
 }
 
 #[macro_export]
-macro_rules! methods {
+macro_rules! protocols {
     ($t:ty) => {
-        <<$t as $crate::Construct>::Methods as $crate::Singleton>::instance()
+        <<$t as $crate::Construct>::Protocols as $crate::Singleton>::instance()
     };
 }
 
@@ -111,7 +111,7 @@ impl ConstructItem for () {
 
 impl Construct for () {
     type Fields = ();
-    type Methods = ();
+    type Protocols = ();
     type Extends = ();
     type NestedComponents = ();
     type MixedParams = ();
@@ -172,7 +172,7 @@ impl<N: New<T>, T> Param<N, T> {
     }
 }
 
-pub trait Methods<Protocol: ?Sized> {}
+pub trait Protocols<Protocol: ?Sized> {}
 
 pub struct MutableMethod<This, In, Out>(pub fn(this: &mut This, input: In) -> Out);
 impl<This, In, Out> MutableMethod<This, In, Out> {

@@ -286,7 +286,7 @@ impl Constructable {
                 impl #lib::Construct for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
-                    type Methods = #mod_ident::Methods;
+                    type Protocols = #mod_ident::Protocols;
                     type MixedParams = (#mixed_params);
                     type NestedComponents = (Self, #hierarchy);
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
@@ -311,7 +311,7 @@ impl Constructable {
             quote! {
                 impl #lib::Mixin for #type_ident {
                     type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
-                    type Methods<T: #lib::Singleton + 'static> = #mod_ident::Methods<T>;
+                    type Protocols<T: #lib::Singleton + 'static> = #mod_ident::Protocols<T>;
                 }
             }
         } else {
@@ -325,10 +325,10 @@ impl Constructable {
                     quote! { () }
                 };
                 let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
-                let mut deref_methods = quote! { <#extends as #lib::Construct>::Methods };
+                let mut deref_protocols = quote! { <#extends as #lib::Construct>::Protocols };
                 for mixin in mixins.iter() {
                     deref_fields = quote! { <#mixin as #lib::Mixin>::Fields<#deref_fields> };
-                    deref_methods = quote! { <#mixin as #lib::Mixin>::Methods<#deref_methods> };
+                    deref_protocols = quote! { <#mixin as #lib::Mixin>::Protocols<#deref_protocols> };
                 }
 
                 quote! {
@@ -336,7 +336,7 @@ impl Constructable {
                         #fields
                     }
 
-                    pub struct Methods;
+                    pub struct Protocols;
                     impl #lib::Singleton for Fields {
                         fn instance() -> &'static Self {
                             &Fields {
@@ -344,9 +344,9 @@ impl Constructable {
                             }
                         }
                     }
-                    impl #lib::Singleton for Methods {
+                    impl #lib::Singleton for Protocols {
                         fn instance() -> &'static Self {
-                            &Methods
+                            &Protocols
                         }
                     }
                     impl ::std::ops::Deref for Fields {
@@ -355,11 +355,11 @@ impl Constructable {
                             <#deref_fields as #lib::Singleton>::instance()
                         }
                     }
-                    impl #lib::Methods<#ty> for Methods { }
-                    impl ::std::ops::Deref for Methods {
-                        type Target = #deref_methods;
+                    impl #lib::Protocols<#ty> for Protocols { }
+                    impl ::std::ops::Deref for Protocols {
+                        type Target = #deref_protocols;
                         fn deref(&self) -> &Self::Target {
-                            <#deref_methods as #lib::Singleton>::instance()
+                            <#deref_protocols as #lib::Singleton>::instance()
                         }
                     }
 
@@ -370,7 +370,7 @@ impl Constructable {
                     #fields
                     __base__: ::std::marker::PhantomData<T>,
                 }
-                pub struct Methods<T: #lib::Singleton>(
+                pub struct Protocols<T: #lib::Singleton>(
                     ::std::marker::PhantomData<T>
                 );
                 impl<T: #lib::Singleton> #lib::Singleton for Fields<T> {
@@ -381,9 +381,9 @@ impl Constructable {
                         }
                     }
                 }
-                impl<T: #lib::Singleton> #lib::Singleton for Methods<T> {
+                impl<T: #lib::Singleton> #lib::Singleton for Protocols<T> {
                     fn instance() -> &'static Self {
-                        &Methods(::std::marker::PhantomData)
+                        &Protocols(::std::marker::PhantomData)
                     }
                 }
                 impl<T: #lib::Singleton + 'static> std::ops::Deref for Fields<T> {
@@ -392,7 +392,7 @@ impl Constructable {
                         T::instance()
                     }
                 }
-                impl<T: #lib::Singleton + 'static> std::ops::Deref for Methods<T> {
+                impl<T: #lib::Singleton + 'static> std::ops::Deref for Protocols<T> {
                     type Target = T;
                     fn deref(&self) -> &Self::Target {
                         T::instance()
@@ -501,16 +501,16 @@ pub struct Method {
     pub output: Type,
     pub attrs: Vec<Attribute>,
 }
-pub struct Methods {
+pub struct Protocols {
     pub ty: Type,
     pub input: ItemImpl,
-    pub methods: Vec<Method>,
+    pub protocols: Vec<Method>,
 }
 
-impl Methods {
+impl Protocols {
     pub fn from_input(input: ItemImpl) -> syn::Result<Self> {
         let ty = *input.self_ty.clone();
-        let mut methods = vec![];
+        let mut protocols = vec![];
         for item in input.items.iter() {
             let ImplItem::Fn(ImplItemFn { sig, attrs, .. }) = item else {
                 throw!(item, "Only fn $method(...) supported");
@@ -521,7 +521,7 @@ impl Methods {
             for arg in sig.inputs.iter() {
                 match arg {
                     FnArg::Receiver(this) => {
-                        throw!(this, "Only static methods supported yet");
+                        throw!(this, "Only static protocols supported yet");
                     }
                     FnArg::Typed(arg) => {
                         let pat = &arg.pat;
@@ -538,7 +538,7 @@ impl Methods {
                 ReturnType::Default => syn::parse2(quote! { () }).unwrap(),
                 ReturnType::Type(_, ty) => *ty.clone(),
             };
-            methods.push(Method {
+            protocols.push(Method {
                 ident,
                 kind,
                 input,
@@ -547,7 +547,7 @@ impl Methods {
             })
         }
 
-        Ok(Self { ty, methods, input })
+        Ok(Self { ty, protocols, input })
     }
 
     pub fn build(&self, _lib: TokenStream) -> syn::Result<TokenStream> {
@@ -556,13 +556,13 @@ impl Methods {
             "{}_construct",
             self.ty.as_ident()?.to_string().to_lowercase()
         );
-        let mut methods = quote! {};
-        for method in self.methods.iter() {
+        let mut protocols = quote! {};
+        for method in self.protocols.iter() {
             let ident = &method.ident;
             let mut args_pass = quote! {};
             let mut args_typed = quote! {};
             if method.kind != MethodKind::Static {
-                throw!(ident, "Only static methods supported yet");
+                throw!(ident, "Only static protocols supported yet");
             }
             for arg in method.input.iter() {
                 let pat = &arg.pat;
@@ -575,9 +575,9 @@ impl Methods {
             }
             let output = &method.output;
             for attr in method.attrs.iter() {
-                methods = quote! { #methods #attr }
+                protocols = quote! { #protocols #attr }
             }
-            methods = quote! { #methods
+            protocols = quote! { #protocols
                 pub fn #ident(&self, #args_typed) -> #output {
                     <#ty>::#ident(#args_pass)
                 }
@@ -586,8 +586,8 @@ impl Methods {
         let input = &self.input;
         Ok(quote! {
             #input
-            impl #mod_ident::Methods {
-                #methods
+            impl #mod_ident::Protocols {
+                #protocols
             }
         })
     }
