@@ -75,7 +75,7 @@ fn step_07() {
 // 8. You can extend one construct from another construct
 
 #[derive(Construct)]
-#[extends(Node)]
+#[extend(Node)]
 pub struct Rect {
     #[default((100., 100.))]
     size: (f32, f32),
@@ -100,8 +100,8 @@ pub struct Input {
 
 // 11. You can inject mixins into constructs:
 #[derive(Construct)]
-#[extends(Rect)]
-#[mixin(Input)]
+#[extend(Rect)]
+#[mix(Input)]
 pub struct Button {
     pressed: bool,
 }
@@ -117,7 +117,7 @@ fn step_12() {
 
 // 13. When you extend from other construct, you extend from its mixins as well.
 #[derive(Construct)]
-#[extends(Button)]
+#[extend(Button)]
 pub struct Radio {
     #[required]
     value: String,

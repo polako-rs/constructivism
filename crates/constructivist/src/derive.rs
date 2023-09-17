@@ -125,14 +125,13 @@ pub struct Constructable {
 
 impl Parse for Constructable {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let ty = input.parse()?;
-        let mut extends = None;
-        if let Ok(ident) = input.parse::<Ident>() {
-            if &ident.to_string() != "extends" {
-                return Err(syn::Error::new(ident.span(), "Expected `extends` ident"));
-            }
-            extends = Some(input.parse()?)
-        }
+        let ty: Type = input.parse()?;
+        let extends = if input.peek(Token![:]) {
+            input.parse::<Token![:]>()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
         let mode = ConstructMode::Construct {
             extends,
             mixins: vec![],
@@ -427,19 +426,19 @@ impl Constructable {
         }
         let ident = input.ident.clone(); // Slider
         let ty = syn::parse2(quote! { #ident }).unwrap();
-        if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extends")) {
+        if let Some(extends) = input.attrs.iter().find(|a| a.path().is_ident("extend")) {
             if !mode.is_object() {
                 throw!(
                     extends,
-                    "#[extends(..) only supported by #[derive(Construct)]."
+                    "#[extend(..) only supported by #[derive(Construct)]."
                 );
             }
             mode.set_extends(extends.parse_args()?)?
         }
-        if let Some(mixin) = input.attrs.iter().find(|a| a.path().is_ident("mixin")) {
+        if let Some(mixin) = input.attrs.iter().find(|a| a.path().is_ident("mix")) {
             // throw!(mixin, "found mixin");
             if !mode.is_object() {
-                throw!(mixin, "#[mixin(..) only supported by #[derive(Construct)].");
+                throw!(mixin, "#[mix(..) only supported by #[derive(Construct)].");
             }
             // mixin.meta.
             mixin.parse_nested_meta(|meta| {
