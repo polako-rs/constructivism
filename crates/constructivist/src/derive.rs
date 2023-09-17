@@ -254,16 +254,16 @@ impl Constructable {
                 let mixin_params =
                     format_ident!("{}_params", mixin.as_ident()?.to_string().to_lowercase());
                 if mixed_params.is_empty() {
-                    mixed_params = quote! { <#mixin as ConstructItem>::Params, };
+                    mixed_params = quote! { <#mixin as #lib::ConstructItem>::Params, };
                     deconstruct = quote! { #mixin_params };
                 } else {
                     mixed_params =
-                        quote! {  #lib::Mix<<#mixin as ConstructItem>::Params, #mixed_params> };
+                        quote! {  #lib::Mix<<#mixin as #lib::ConstructItem>::Params, #mixed_params> };
                     deconstruct = quote! { (#mixin_params, #deconstruct) };
                 }
                 expanded_params =
-                    quote! { #lib::Mix<<#mixin as ConstructItem>::Params, #expanded_params> };
-                construct = quote! { ( #mixin::construct_item(#mixin_params), #construct ) };
+                    quote! { #lib::Mix<<#mixin as #lib::ConstructItem>::Params, #expanded_params> };
+                construct = quote! { ( <#mixin as #lib::ConstructItem>::construct_item(#mixin_params), #construct ) };
                 hierarchy = quote! { (#mixin, #hierarchy) };
             }
             let mixed_params = if mixed_params.is_empty() {

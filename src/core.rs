@@ -96,10 +96,6 @@ macro_rules! protocols {
     };
 }
 
-pub trait Is<T: Construct> { }
-pub struct Meta<T>(PhantomData<T>);
-impl<T: Construct> Is<T> for Meta<T> { }
-impl<T: Construct> Is<T> for T where Meta<T>: Is<T> { }
 
 impl ConstructItem for () {
     type Params = ();
@@ -137,9 +133,13 @@ impl<T> Params<T> {
 
 
 pub trait Extends<T: Construct> { }
-impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<EInheritance>, EInheritance> Extends<E> for T { }
+impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<Exclusive, EInheritance>, EInheritance> Extends<E> for T { }
+pub trait Is<T: Construct> { }
+impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<Inclusive, EInheritance>, EInheritance> Is<E> for T { }
 
-pub trait Contains<T> { }
+pub struct Inclusive;
+pub struct Exclusive;
+pub trait Contains<I, T> { }
 
 pub struct ParamConflict<N>(PhantomData<N>);
 impl<N> ParamConflict<N> {

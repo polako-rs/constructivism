@@ -488,9 +488,12 @@ fn impl_contains(size: u8) -> TokenStream {
             cnt = quote! { (#ti, #cnt) }
         }
         out = quote! { #out
-            impl<#tin> Contains<#cnt> for #tfor { }
+            impl<I, #tin> Contains<I, #cnt> for #tfor { }
         }
     }
+    out = quote! { #out
+        impl<#tin> Contains<Inclusive, #tfor> for #tfor { }
+    };
     out
 
 }

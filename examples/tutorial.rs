@@ -144,15 +144,20 @@ fn step_14() {
     protocols!(Button).add_child(Entity(23));
 }
 
-// 15. You can check if construct extends other construct at any level with `Extends<T>` trait
-fn takes_everything_that_extends_node<T: Extends<Node>>(_: T) { }
+// 15. You can check if construct extends other construct at any level with `Extends<T>` and `Is<T>` traits
+fn takes_everything_that_extends_node<T: Extends<Node>>(_: &T) { }
+fn takes_everything_that_node<T: Is<Node>>(_: &T) { }
 fn step_15() {
     let (button, input, rect, node) = construct!(Button { disabled: true });
-    takes_everything_that_extends_node(rect);
-    takes_everything_that_extends_node(button);
+    takes_everything_that_extends_node(&button);
+    takes_everything_that_extends_node(&rect);
+    takes_everything_that_node(&button);
+    takes_everything_that_node(&rect);
+    takes_everything_that_node(&node);
 
     // won't compile: Extends<T> respects only Constructs, not Mixins
     // takes_everything_that_extends_node(input);
+
 
     // won't compile: Node doesn't extends Node
     // takes_everything_that_extends_node(node);
