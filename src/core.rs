@@ -42,52 +42,52 @@ pub trait Mixin: ConstructItem {
     type Protocols<T: Singleton + 'static>: Singleton;
 }
 
-#[macro_export]
-macro_rules! construct {
-    (@field $fields:ident $params:ident $f:ident $e:expr) => {
-        let param: &$crate::Param<_, _> = &$fields.$f;
-        let field = param.field();
-        let value = $params.field(&field).define(param.value($e.into()));
-        let $params = $params + value;
-        $params.validate(&param)();
-    };
-    (@fields $fields:ident $params:ident) => {
+// #[macro_export]
+// macro_rules! construct {
+//     (@field $fields:ident $params:ident $f:ident $e:expr) => {
+//         let param: &$crate::Param<_, _> = &$fields.$f;
+//         let field = param.field();
+//         let value = $params.field(&field).define(param.value($e.into()));
+//         let $params = $params + value;
+//         $params.validate(&param)();
+//     };
+//     (@fields $fields:ident $params:ident) => {
 
-    };
-    (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
-        $crate::construct!(@field $fields $params $f $e)
-    };
-    (@fields $fields:ident $params:ident $f:ident) => {
-        $crate::construct!(@field $fields $params $f $f);
-        $crate::construct!(@fields $fields $params $($rest)*)
-    };
-    (@fields $fields:ident $params:ident $f:ident: $e:expr,) => {
-        $crate::construct!(@field $fields $params $f $e);
-    };
-    (@fields $fields:ident $params:ident $f:ident,) => {
-        $crate::construct!(@field $fields $params $f $f);
-        $crate::construct!(@fields $fields $params $($rest)*)
-    };
-    (@fields $fields:ident $params:ident $f:ident: $e:expr, $($rest:tt)*) => {
-        $crate::construct!(@field $fields $params $f $e);
-        $crate::construct!(@fields $fields $params $($rest)*)
-    };
-    (@fields $fields:ident $params:ident $f:ident, $($rest:tt)*) => {
-        $crate::construct!(@field $fields $params $f $f);
-        $crate::construct!(@fields $fields $params $($rest)*)
-    };
-    ($t:ty { $($rest:tt)* } ) => {
-        {
-            use $crate::traits::*;
-            type Fields = <$t as $crate::Construct>::Fields;
-            let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
-            let params = <<$t as $crate::Construct>::ExpandedParams as $crate::Extractable>::as_params();
-            $crate::construct!(@fields fields params $($rest)*);
-            let defined_params = params.defined();
-            <$t as $crate::Construct>::construct(defined_params).flattern()
-        }
-    };
-}
+//     };
+//     (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
+//         $crate::construct!(@field $fields $params $f $e)
+//     };
+//     (@fields $fields:ident $params:ident $f:ident) => {
+//         $crate::construct!(@field $fields $params $f $f);
+//         $crate::construct!(@fields $fields $params $($rest)*)
+//     };
+//     (@fields $fields:ident $params:ident $f:ident: $e:expr,) => {
+//         $crate::construct!(@field $fields $params $f $e);
+//     };
+//     (@fields $fields:ident $params:ident $f:ident,) => {
+//         $crate::construct!(@field $fields $params $f $f);
+//         $crate::construct!(@fields $fields $params $($rest)*)
+//     };
+//     (@fields $fields:ident $params:ident $f:ident: $e:expr, $($rest:tt)*) => {
+//         $crate::construct!(@field $fields $params $f $e);
+//         $crate::construct!(@fields $fields $params $($rest)*)
+//     };
+//     (@fields $fields:ident $params:ident $f:ident, $($rest:tt)*) => {
+//         $crate::construct!(@field $fields $params $f $f);
+//         $crate::construct!(@fields $fields $params $($rest)*)
+//     };
+//     ($t:ty { $($rest:tt)* } ) => {
+//         {
+//             use $crate::traits::*;
+//             type Fields = <$t as $crate::Construct>::Fields;
+//             let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+//             let params = <<$t as $crate::Construct>::ExpandedParams as $crate::Extractable>::as_params();
+//             $crate::construct!(@fields fields params $($rest)*);
+//             let defined_params = params.defined();
+//             <$t as $crate::Construct>::construct(defined_params).flattern()
+//         }
+//     };
+// }
 
 #[macro_export]
 macro_rules! protocols {

@@ -4,14 +4,9 @@ use syn::{
     bracketed, parenthesized, parse::Parse, spanned::Spanned, Attribute, Data, DeriveInput, Expr,
     FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, Token, Type,
 };
-
+use crate::context::Context;
 use crate::exts::TypeExt;
-
-macro_rules! throw {
-    ($loc:expr, $msg:expr) => {
-        return Err(syn::Error::new($loc.span(), $msg));
-    };
-}
+use crate::throw;
 
 enum ParamType {
     Single(Type),
@@ -151,8 +146,9 @@ impl Parse for Constructable {
 }
 
 impl Constructable {
-    pub fn build(&self, lib: TokenStream) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let ty = &self.ty;
+        let lib = ctx.path("constructivism");
         let type_ident = ty.as_ident()?;
         let mod_ident = format_ident!(
             // slider_construct

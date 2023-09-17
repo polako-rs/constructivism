@@ -13,7 +13,7 @@ pub struct Node {
 fn step_01() {
     let node = construct!(Node {
         position: (10., 10.),
-        visible: true
+        visible: true,
     });
     assert_eq!(node.position.0, 10.);
     assert_eq!(node.visible, true);
