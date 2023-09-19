@@ -1,17 +1,16 @@
-### About
-`constructivism_macro` is a crate that allows to construct complex structures within single call. It is also charged with simple compile-time meta-inheritance model with mixins.
+### Definition
 
-It is at very early proof-of-cocept stage for now. But with bright future.
+This is theory & practice section that describes `constructivim`. You can see complete example [here](./examples/tutorial.rs). You can start with 
 
-### [Tutorial](./examples/tutorial.rs)
-0. Use constructivism_macro
 ```rust
-use constructivism_macro::*;
+use constructivism::*;
 ```
 
-1. You can derive `Construct` now
+1. `constructivism` constist of `Construct`s. `Construct` can be declared only in front of the another `Construct`. `constructivism` provide only `Nothing` construct. To define new `Constrcut` you can:
+
 ```rust
 #[derive(Construct)]
+#[construct(Node -> Nothing)]
 pub struct Node {
     // You can provide custom default values.
     #[default(true)]
@@ -20,9 +19,9 @@ pub struct Node {
 }
 ```
 
-2. You can use `construct!` macro for instancing the Node.
+2. You can `construct!` the `Construct`:
 ```rust
-fn step_01() {
+fn def_02() {
     let node = construct!(Node {
         position: (10., 10.),
         visible: true
@@ -32,9 +31,9 @@ fn step_01() {
 }
 ```
 
-3. You can skip declaration of default values
+3. You can skip declaration of non-required fields
 ```rust
-fn step_03() {
+fn def_03() {
     let node = construct!(Node {
         visible: false
     });
@@ -42,11 +41,12 @@ fn step_03() {
 }
 ```
 
-4. You have to mark non-default required fields with `#[required]` or you get compilation error.
+1. You have to mark non-default fields with `#[required]` or you get compilation error.
 ```rust
 pub struct Entity(usize);
 
 #[derive(Construct)]
+#[construct(Reference -> Nothing)]
 struct Reference {
     #[required]
     target: Entity,
@@ -54,9 +54,9 @@ struct Reference {
 }
 ```
 
-5. You have to pass required field to `construct!(..)`` or you get compilation error
+5. You have to pass all required fiels to `construct!(..)` or you get compilation error
 ```rust
-fn step_05() {
+fn def_05() {
     let reference = construct!(Reference {
         target: Entity(23)
     });
@@ -65,53 +65,31 @@ fn step_05() {
 }
 ```
 
-6. You derive Construct using `constructable! { .. }`, define custom params and provide custom constructor. `min: f32 = 0.` syntax defines min param with default value of 0. If you doesn't provide default value, this param counts as required.
-```rust
-pub struct Range {
-    min: f32,
-    val: f32,
-    max: f32,
-}
-
-constructable! { 
-    Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
-        if max < min {
-            max = min;
-        }
-        val = val.min(max).max(min);
-        Self { min, val, max }
-    }
-}
-```
-
-7. Provided constructor will be called for instancing Range
-```rust
-fn step_07() {
-    let range = construct!(Range {
-        val: 100.
-    });
-    assert_eq!(range.min, 0.);
-    assert_eq!(range.max, 1.);
-    assert_eq!(range.val, 1.);
-}
-```
-
-8. You can extend one construct from another construct
+6. The `Construct`'s relation (`Node -> Nothing`) called `Sequence` in constructivism. You define only local `Sequence` to the next `Construct`:
 ```rust
 #[derive(Construct)]
-#[extend(Node)]
+#[construct(Rect -> Node)]
 pub struct Rect {
     #[default((100., 100.))]
     size: (f32, f32)
 }
 ```
 
-9. You can pass params for all structs in inheritance branch with single call
+7. The `Sequence` for `Rect` becomes `Rect -> Node -> Nothing`. The unwrapped `#[derive(Construct)]` for Rect looks something like this:
 ```rust
-fn step_09() {
-    let (rect, node) = construct!(Rect {
+impl Construct for Rect {
+    type Sequence = (Rect, Node, Nothing)
+    /* other Construct types and methods */
+}
+```
+
+8. You can `construct!` the whole `Sequence` within the single call:
+```rust
+fn def_08() {
+    let (rect, node, /* nothing */) = construct!(Rect {
         position: (10., 10.),
         size: (10., 10.),
+        // I can skip fields, no `visible` here, for example
     });
     assert_eq!(rect.size.0, 10.);
     assert_eq!(node.position.1, 10.);
@@ -119,27 +97,43 @@ fn step_09() {
 }
 ```
 
-10. You can derive Mixin as well.
+9. Every construct have it's own `Design`. You can implement methods for construct's design:
+
 ```rust
-#[derive(Mixin)]
-pub struct Input {
-    disabled: bool
+impl NodeDesign {
+    pub fn move_to(&self, entity: Entity, position: (f32, f32)) { }
+}
+impl RectDesign {
+    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) { }
 }
 ```
 
-11. You can inject mixins into constructs:
+10. You can call methods on construct's design. Method resolves within the `Sequence` order:
 ```rust
+fn def_10() {
+    let rect_entity = Entity(20);
+    design!(Rect).expand_to(rect_entity, (10., 10.));
+    design!(Rect).move_to(rect_entity, (10., 10.));
+}
+```
+
+11. You can define and insert `Segment` into construct's `Sequence`:
+```rust
+#[derive(Segment)]
+pub struct Input {
+    disabled: bool
+}
+
 #[derive(Construct)]
-#[extend(Rect)]
-#[mix(Input)]
+#[construct(Button -> Input -> Rect)]
 pub struct Button {
     pressed: bool
 }
 ```
 
-12. You can pass arguments to inheritance tree (with mixins) as well
+12. The `Sequence` for `Button` becomes `Button -> Input -> Rect -> Node -> Nothing`. You still can `construct!` the whole `Sequence` within the single call:
 ```rust
-fn step_12() {
+fn def_12() {
     let (button, input, rect, node) = construct!(Button {
         disabled: true
     });
@@ -150,58 +144,15 @@ fn step_12() {
 }
 ```
 
-13. When you extend from other construct, you extend from its mixins as well.
+13. `Segment` has its own `Design` as well. And the method call resolves within the `Sequence` order as well:
 ```rust
-#[derive(Construct)]
-#[extend(Button)]
-pub struct Radio {
-    #[required]
-    value: String
-}
-fn step_13() {
-    let (radio, button, input, rect, node) = construct!(Radio {
-        value: "option_0"
-    });
-    assert_eq!(button.pressed, false);
-    assert_eq!(input.disabled, false);
-    assert_eq!(rect.size.0, 100.);
-    assert_eq!(node.position.0, 0.);
-    assert_eq!(radio.value, "option_0".to_string());
-}
-```
-14. You can implement static protocols. It will be accesable for all inherited items.
-```rust
-// Implement protocols for Node
-
-impl node_construct::Protocols {
-    #[allow(unused_variables)]
-    pub fn add_child(&self, entity: Entity) {
-    }
+impl InputDesign {
+    fn focus(&self, entity: Entity) { }
 }
 
-fn step_14() {
-    // It is accessable from Button as well as from
-    // any item that extends Node directly or indirectly
-    protocols!(Button).add_child(Entity(23));
-}
-```
-
-15. You can check if construct extends other construct at any level with `Extends<T>` trait
-```rust
-fn takes_everything_that_extends_node<T: Extends<Node>>(_: T) { }
-fn step_15() {
-    let (button, input, rect, node) = construct!(Button { disabled: true });
-    takes_everything_that_extends_node(rect);
-    takes_everything_that_extends_node(button);
-
-    // won't compile: Extends<T> respects only Constructs, not Mixins
-    // takes_everything_that_extends_node(input);
-
-    // won't compile: Node doesn't extends Node
-    // takes_everything_that_extends_node(node);
-
-    assert_eq!(input.disabled, true);
-    assert_eq!(node.position.0, 0.);
+fn def_13() {
+    let btn = Entity(42);
+    design!(Button).focus(entity);
 }
 ```
 
