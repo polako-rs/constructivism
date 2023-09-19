@@ -31,7 +31,7 @@ fn def_02() {
 }
 ```
 
-3. You can skip declaration of default fields
+3. You can skip declaration of non-required fields
 ```rust
 fn def_03() {
     let node = construct!(Node {
@@ -41,7 +41,7 @@ fn def_03() {
 }
 ```
 
-4. You have to mark non-default required fields with `#[required]` or you get compilation error.
+1. You have to mark non-default fields with `#[required]` or you get compilation error.
 ```rust
 pub struct Entity(usize);
 
