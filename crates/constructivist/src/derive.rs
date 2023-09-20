@@ -214,6 +214,22 @@ pub struct DeriveSegment {
     body: Option<Expr>,
 }
 
+impl Parse for DeriveSegment {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ty = input.parse()?;
+        let content;
+        parenthesized!(content in input);
+        let params = content.parse_terminated(Param::parse, Token![,])?;
+        let params = params.into_iter().collect();
+        let body = Some(input.parse()?);
+        Ok(DeriveSegment {
+            ty,
+            params,
+            body,
+        })
+    }
+}
+
 impl DeriveSegment {
     pub fn from_derive(input: DeriveInput) -> syn::Result<Self> {
         if input.generics.params.len() > 0 {
@@ -295,7 +311,7 @@ impl DeriveSegment {
                 type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
                 type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
-            pub struct #design<T: #lib::Singleton>(
+            pub struct #design<T>(
                 ::std::marker::PhantomData<T>
             );
             impl<T: #lib::Singleton> #lib::Singleton for #design<T> {

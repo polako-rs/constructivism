@@ -41,7 +41,7 @@ fn def_03() {
 }
 ```
 
-1. You have to mark non-default fields with `#[required]` or you get compilation error.
+4. You have to mark non-default fields with `#[required]` or you get compilation error.
 ```rust
 pub struct Entity(usize);
 
@@ -89,7 +89,7 @@ fn def_08() {
     let (rect, node, /* nothing */) = construct!(Rect {
         position: (10., 10.),
         size: (10., 10.),
-        // I can skip fields, no `visible` here, for example
+        // You can skip fields, no `visible` here, for example
     });
     assert_eq!(rect.size.0, 10.);
     assert_eq!(node.position.1, 10.);
@@ -144,15 +144,83 @@ fn def_12() {
 }
 ```
 
-13. `Segment` has its own `Design` as well. And the method call resolves within the `Sequence` order as well:
+13. `Segment` has its own `Design` as well. And the method call resolves within the `Sequence` order as well. Segment's designes has one generic parameter - next segment/construct, so you need to respect it when implement Segment's designes:
 ```rust
-impl InputDesign {
+impl<T> InputDesign<T> {
+    #[allow(unused_variables)]
     fn focus(&self, entity: Entity) { }
 }
 
 fn def_13() {
     let btn = Entity(42);
-    design!(Button).focus(entity);
+    design!(Button).focus(btn);
+}
+```
+
+14. Sometimes you want to implement Construct for foreign type or provide custom constructor for your type. You can use `derive_construct!` proc macro. `min: f32 = 0.` syntax defines `min` param with default value of 0. If you doesn't provide default value, this param counts as required.
+```rust
+pub struct ProgressBar {
+    min: f32,
+    val: f32,
+    max: f32,
+}
+
+derive_construct! {
+    // sequence
+    ProgressBar -> Rect
+
+    // params
+    (min: f32 = 0., max: f32 = 1., val: f32 = 0.)
+    
+    // constructor
+    {
+        if max < min {
+            max = min;
+        }
+        val = val.min(max).max(min);
+        Self { min, val, max }
+    }
+}
+```
+
+15. Provided constructor will be called for instancing Range:
+```rust
+fn def_15() {
+    let (range, _, _) = construct!(ProgressBar { val: 100. });
+    assert_eq!(range.min, 0.);
+    assert_eq!(range.max, 1.);
+    assert_eq!(range.val, 1.);
+}
+```
+
+16. You can derive segments same way:
+```rust
+pub struct Range {
+    min: f32,
+    max: f32,
+    val: f32,
+}
+derive_segment!{
+    Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
+        if max < min {
+            max = min;
+        }
+        val = val.min(max).max(min);
+        Self { min, val, max }
+    }
+}
+
+#[derive(Construct)]
+#[construct(Slider -> Range -> Rect)]
+pub struct Slider;
+
+fn def_16() {
+    let (_slider, range, _, _) = construct!(Slider {
+        val: 10.
+    });
+    assert_eq!(range.min, 0.0);
+    assert_eq!(range.max, 1.0);
+    assert_eq!(range.val, 1.0);
 }
 ```
 
@@ -160,8 +228,6 @@ fn def_13() {
 ### Upcoming features
 
 - docstring bypassing
-
-- `mixable! { ... }`, just like `constructable! { ... }`
 
 - union props
 

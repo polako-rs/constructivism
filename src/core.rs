@@ -22,12 +22,14 @@ pub trait ConstructItem {
 
 pub trait Construct: ConstructItem {
     type Base: Construct;
+    type Sequence;
+    
     type Fields: Singleton;
     type Design: Singleton;
+
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
     type NestedSequence: Flattern;
-    type Sequence;
 
     fn construct<P, const I: u8>(params: P) -> Self::NestedSequence where P: ExtractParams<
         I, Self::MixedParams,
@@ -57,9 +59,9 @@ impl ConstructItem for () {
 }
 
 impl Construct for () {
+    type Base = ();
     type Fields = ();
     type Design = ();
-    type Base = ();
     type NestedSequence = ();
     type MixedParams = ();
     type ExpandedParams = ();
