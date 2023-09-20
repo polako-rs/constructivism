@@ -21,19 +21,18 @@ pub trait ConstructItem {
 }
 
 pub trait Construct: ConstructItem {
-    type Extends: Construct;
+    type Base: Construct;
     type Fields: Singleton;
     type Design: Singleton;
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
-    type NestedComponents: Flattern;
-    type Components;
-    type Inheritance;
+    type NestedSequence: Flattern;
+    type Sequence;
 
-    fn construct<P, const I: u8>(params: P) -> Self::NestedComponents where P: ExtractParams<
+    fn construct<P, const I: u8>(params: P) -> Self::NestedSequence where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
-        Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+        Rest = <<<Self::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
     >;
 }
 
@@ -42,60 +41,12 @@ pub trait Segment: ConstructItem {
     type Design<T: Singleton + 'static>: Singleton;
 }
 
-// #[macro_export]
-// macro_rules! construct {
-//     (@field $fields:ident $params:ident $f:ident $e:expr) => {
-//         let param: &$crate::Param<_, _> = &$fields.$f;
-//         let field = param.field();
-//         let value = $params.field(&field).define(param.value($e.into()));
-//         let $params = $params + value;
-//         $params.validate(&param)();
-//     };
-//     (@fields $fields:ident $params:ident) => {
-
-//     };
-//     (@fields $fields:ident $params:ident $f:ident: $e:expr) => {
-//         $crate::construct!(@field $fields $params $f $e)
-//     };
-//     (@fields $fields:ident $params:ident $f:ident) => {
-//         $crate::construct!(@field $fields $params $f $f);
-//         $crate::construct!(@fields $fields $params $($rest)*)
-//     };
-//     (@fields $fields:ident $params:ident $f:ident: $e:expr,) => {
-//         $crate::construct!(@field $fields $params $f $e);
-//     };
-//     (@fields $fields:ident $params:ident $f:ident,) => {
-//         $crate::construct!(@field $fields $params $f $f);
-//         $crate::construct!(@fields $fields $params $($rest)*)
-//     };
-//     (@fields $fields:ident $params:ident $f:ident: $e:expr, $($rest:tt)*) => {
-//         $crate::construct!(@field $fields $params $f $e);
-//         $crate::construct!(@fields $fields $params $($rest)*)
-//     };
-//     (@fields $fields:ident $params:ident $f:ident, $($rest:tt)*) => {
-//         $crate::construct!(@field $fields $params $f $f);
-//         $crate::construct!(@fields $fields $params $($rest)*)
-//     };
-//     ($t:ty { $($rest:tt)* } ) => {
-//         {
-//             use $crate::traits::*;
-//             type Fields = <$t as $crate::Construct>::Fields;
-//             let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
-//             let params = <<$t as $crate::Construct>::ExpandedParams as $crate::Extractable>::as_params();
-//             $crate::construct!(@fields fields params $($rest)*);
-//             let defined_params = params.defined();
-//             <$t as $crate::Construct>::construct(defined_params).flattern()
-//         }
-//     };
-// }
-
 #[macro_export]
 macro_rules! design {
     ($t:ty) => {
         <<$t as $crate::Construct>::Design as $crate::Singleton>::instance()
     };
 }
-
 
 impl ConstructItem for () {
     type Params = ();
@@ -108,16 +59,15 @@ impl ConstructItem for () {
 impl Construct for () {
     type Fields = ();
     type Design = ();
-    type Extends = ();
-    type NestedComponents = ();
+    type Base = ();
+    type NestedSequence = ();
     type MixedParams = ();
     type ExpandedParams = ();
-    type Inheritance = ();
-    type Components = <Self::NestedComponents as Flattern>::Output;
-    fn construct<P, const I: u8>(_: P) -> Self::NestedComponents where P: ExtractParams<
+    type Sequence = <Self::NestedSequence as Flattern>::Output;
+    fn construct<P, const I: u8>(_: P) -> Self::NestedSequence where P: ExtractParams<
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
-        Rest = <<<Self::Extends as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+        Rest = <<<Self::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
     >{
         ()
     }
@@ -133,9 +83,9 @@ impl<T> Params<T> {
 
 
 pub trait Extends<T: Construct> { }
-impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<Exclusive, EInheritance>, EInheritance> Extends<E> for T { }
+impl<E: Construct<NestedSequence = BaseSeq>, T: Construct<NestedSequence = Seq>, Seq: Contains<Exclusive, BaseSeq>, BaseSeq> Extends<E> for T { }
 pub trait Is<T: Construct> { }
-impl<E: Construct<Inheritance = EInheritance>, T: Construct<Inheritance = TInheritance>, TInheritance: Contains<Inclusive, EInheritance>, EInheritance> Is<E> for T { }
+impl<E: Construct<NestedSequence = BaseSeq>, T: Construct<NestedSequence = Seq>, Seq: Contains<Inclusive, BaseSeq>, BaseSeq> Is<E> for T { }
 
 pub struct Inclusive;
 pub struct Exclusive;

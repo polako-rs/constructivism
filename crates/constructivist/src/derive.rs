@@ -382,14 +382,14 @@ impl DeriveConstruct {
             type_params_deconstruct,
         } = self.params.build(ctx, &ty, &mod_ident)?;
         let decls = {
-            let extends = &self.sequence.next;
-            let extends = if !extends.is_nothing() {
-                quote! { #extends }
+            let base = &self.sequence.next;
+            let base = if !base.is_nothing() {
+                quote! { #base }
             } else {
                 quote! { () }
             };
-            let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
-            deref_design = quote! { <#extends as #lib::Construct>::Design };
+            let mut deref_fields = quote! { <#base as #lib::Construct>::Fields };
+            deref_design = quote! { <#base as #lib::Construct>::Design };
             for segment in self.sequence.segments.iter() {
                 deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
                 deref_design = quote! { <#segment as #lib::Segment>::Design<#deref_design> };
@@ -421,23 +421,18 @@ impl DeriveConstruct {
                 throw!(self.sequence.this, "Seqence head doesn't match struct name");
             }
             let this = &self.sequence.this;
-            let extends = &self.sequence.next;
-            let inheritance = if !extends.is_nothing() {
-                quote! { (#type_ident, <#extends as #lib::Construct>::Inheritance) }
-            } else {
-                quote! { (#type_ident, ()) }
-            };
-            let extends = if !extends.is_nothing() {
-                quote! { #extends }
+            let base = &self.sequence.next;
+            let base = if !base.is_nothing() {
+                quote! { #base }
             } else {
                 quote! { () }
             };
 
             let mut mixed_params = quote! {};
-            let mut expanded_params = quote! { <Self::Extends as #lib::Construct>::ExpandedParams };
-            let mut hierarchy = quote! { <Self::Extends as #lib::Construct>::NestedComponents };
+            let mut expanded_params = quote! { <Self::Base as #lib::Construct>::ExpandedParams };
+            let mut base_sequence = quote! { <Self::Base as #lib::Construct>::NestedSequence };
             let mut deconstruct = quote! {};
-            let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
+            let mut construct = quote! { <Self::Base as #lib::Construct>::construct(rest) };
             for segment in self.sequence.segments.iter().rev() {
                 let segment_params =
                     format_ident!("{}_params", segment.as_ident()?.to_string().to_lowercase());
@@ -450,7 +445,7 @@ impl DeriveConstruct {
                 }
                 expanded_params = quote! { #lib::Mix<<#segment as #lib::ConstructItem>::Params, #expanded_params> };
                 construct = quote! { ( <#segment as #lib::ConstructItem>::construct_item(#segment_params), #construct ) };
-                hierarchy = quote! { (#segment, #hierarchy) };
+                base_sequence = quote! { (#segment, #base_sequence) };
             }
             let mixed_params = if mixed_params.is_empty() {
                 quote! { (#type_params) }
@@ -470,19 +465,18 @@ impl DeriveConstruct {
             };
             quote! {
                 impl #lib::Construct for #type_ident {
-                    type Extends = #extends;
+                    type Sequence = <Self::NestedSequence as #lib::Flattern>::Output;
+                    type Base = #base;
                     type Fields = #mod_ident::Fields;
                     type Design = #design;
                     type MixedParams = (#mixed_params);
-                    type NestedComponents = (Self, #hierarchy);
+                    type NestedSequence = (Self, #base_sequence);
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
-                    type Components = <Self::NestedComponents as #lib::Flattern>::Output;
-                    type Inheritance = #inheritance;
 
-                    fn construct<P, const I: u8>(params: P) -> Self::NestedComponents where P: #lib::ExtractParams<
+                    fn construct<P, const I: u8>(params: P) -> Self::NestedSequence where P: #lib::ExtractParams<
                         I, Self::MixedParams,
                         Value = <Self::MixedParams as #lib::Extractable>::Output,
-                        Rest = <<<Self::Extends as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined
+                        Rest = <<<Self::Base as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined
                     > {
                         let _: Option<#this> = None;
                         let (#deconstruct, rest) = params.extract_params();
