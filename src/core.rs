@@ -11,7 +11,7 @@ pub mod traits {
     pub use super::A;
     pub use super::Construct;
     pub use super::Mixed;
-    pub use super::Mixin;
+    pub use super::Segment;
     pub use super::New;
 }
 
@@ -37,7 +37,7 @@ pub trait Construct: ConstructItem {
     >;
 }
 
-pub trait Mixin: ConstructItem {
+pub trait Segment: ConstructItem {
     type Fields<T: Singleton + 'static>: Singleton;
     type Protocols<T: Singleton + 'static>: Singleton;
 }
