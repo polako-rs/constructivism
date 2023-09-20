@@ -2,6 +2,7 @@ use constructivism::*;
 
 // 1. You can derive `Construct`
 #[derive(Construct)]
+#[construct(Node -> Nothing)]
 pub struct Node {
     // You can provide custom default values.
     #[default(true)]
@@ -30,6 +31,7 @@ fn step_03() {
 pub struct Entity(usize);
 
 #[derive(Construct)]
+#[construct(Reference -> Nothing)]
 pub struct Reference {
     #[required]
     target: Entity,
@@ -43,7 +45,7 @@ fn step_05() {
     assert_eq!(reference.count, 0);
 }
 
-// 6. You derive Construct using `constructable! { .. }`, define custom params
+// 6. You can derive Construct using `derive_construct! { .. }`, define custom params
 // and provide custom constructor. `min: f32 = 0.` syntax defines min param with
 // default value of 0. If you doesn't provide default value, this param counts as
 // required.
@@ -54,8 +56,9 @@ pub struct Range {
     max: f32,
 }
 
-constructable! {
-    Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
+derive_construct! {
+    Range -> Nothing
+    (min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
         if max < min {
             max = min;
         }
@@ -75,7 +78,7 @@ fn step_07() {
 // 8. You can extend one construct from another construct
 
 #[derive(Construct)]
-#[extend(Node)]
+#[construct(Rect -> Node)]
 pub struct Rect {
     #[default((100., 100.))]
     size: (f32, f32),
@@ -100,8 +103,7 @@ pub struct Input {
 
 // 11. You can inject mixins into constructs:
 #[derive(Construct)]
-#[extend(Rect)]
-#[mix(Input)]
+#[construct(Button -> Input -> Rect)]
 pub struct Button {
     pressed: bool,
 }
@@ -117,7 +119,7 @@ fn step_12() {
 
 // 13. When you extend from other construct, you extend from its mixins as well.
 #[derive(Construct)]
-#[extend(Button)]
+#[construct(Radio -> Button)]
 pub struct Radio {
     #[required]
     value: String,

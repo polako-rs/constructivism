@@ -7,10 +7,10 @@ use constructivist::prelude::*;
 const DEFAULT_CONSTRUCT_FIELD_LIMIT: u8 = 16;
 
 
-#[proc_macro_derive(Construct, attributes(extend, mix, required, default))]
-pub fn derive_construct_item(input: pm::TokenStream) -> pm::TokenStream {
+#[proc_macro_derive(Construct, attributes(construct, required, default))]
+pub fn construct_derive(input: pm::TokenStream) -> pm::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let constructable = match Constructable::from_derive(input, ConstructMode::object()) {
+    let constructable = match DeriveConstruct::from_derive(input) {
         Err(e) => return pm::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
@@ -21,9 +21,9 @@ pub fn derive_construct_item(input: pm::TokenStream) -> pm::TokenStream {
     pm::TokenStream::from(stream)
 }
 #[proc_macro_derive(Mixin, attributes(required, default))]
-pub fn derive_mixin(input: pm::TokenStream) -> pm::TokenStream {
+pub fn segment_derive(input: pm::TokenStream) -> pm::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let constructable = match Constructable::from_derive(input, ConstructMode::mixin()) {
+    let constructable = match DeriveSegment::from_derive(input) {
         Err(e) => return pm::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
@@ -35,8 +35,8 @@ pub fn derive_mixin(input: pm::TokenStream) -> pm::TokenStream {
 }
 
 #[proc_macro]
-pub fn constructable(input: pm::TokenStream) -> pm::TokenStream {
-    let input = parse_macro_input!(input as Constructable);
+pub fn derive_construct(input: pm::TokenStream) -> pm::TokenStream {
+    let input = parse_macro_input!(input as DeriveConstruct);
     let stream = match input.build(&Context::new("constructivism")) {
         Err(e) => return pm::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
