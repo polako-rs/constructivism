@@ -38,7 +38,7 @@ pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
     }
 }
 
-pub fn implement_constructivism(_: u8) -> TokenStream {
+pub fn implement_constructivism(max_size: u8) -> TokenStream {
     let source = include_str!("../../../src/core.rs");
     let source = source
         .lines()
@@ -50,6 +50,19 @@ pub fn implement_constructivism(_: u8) -> TokenStream {
     };
     quote! {
         #core
+        implement_constructivism_core!(#max_size);
+    }
+}
+
+pub fn implement_constructivism_macro(path: &str) -> TokenStream {
+    let path = format!("\"{path}\"");
+    let source = include_str!("../../constructivism_macro/src/lib.rs");
+    let source = source.replace("\"constructivism\"", &path);
+    let Ok(constructivism_macro) = TokenStream::from_str(source.as_str()) else {
+        return quote! { compile_error! ("Coudn't parse constructivism_macro")}
+    };
+    quote! { 
+        #constructivism_macro
     }
 }
 

@@ -1,4 +1,3 @@
-use constructivism_macro::implement_constructivism_core; /* @constructivist-no-expose */
 use std::marker::PhantomData;
 
 pub mod traits {
@@ -311,4 +310,5 @@ pub trait AsParams {
     fn as_params() -> Self::Undefined;
 }
 
-implement_constructivism_core!(16);
+use constructivism_macro::implement_constructivism_core; /* @constructivist-no-expose */
+implement_constructivism_core!(16); /* @constructivist-no-expose */
