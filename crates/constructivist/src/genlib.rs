@@ -2,6 +2,18 @@ use std::str::FromStr;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::{parse::Parse, LitInt};
+
+pub struct ConstructivistLimits {
+    pub max_fields: u8
+}
+
+impl Parse for ConstructivistLimits {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let max_fields = input.parse::<LitInt>()?;
+        Ok(ConstructivistLimits { max_fields: max_fields.base10_parse()? })
+    }
+}
 
 pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
     let extract_field_impls = impl_all_extract_field(max_size);
