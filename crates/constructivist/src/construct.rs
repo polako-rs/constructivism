@@ -1,9 +1,9 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parse::Parse, Type, Expr, Token, braced, parenthesized};
+use syn::{braced, parenthesized, parse::Parse, Expr, Token, Type};
 
 use quote::quote;
 
-use crate::{throw, context::Context};
+use crate::{context::Context, throw};
 
 #[derive(Clone)]
 pub struct Param {
@@ -29,7 +29,10 @@ impl Parse for Param {
         if value.is_none() {
             throw!(input, "Unexpected param input");
         }
-        Ok(Param { ident, value: value.unwrap()})
+        Ok(Param {
+            ident,
+            value: value.unwrap(),
+        })
     }
 }
 //         let param: &$crate::Param<_, _> = &$fields.$f;
@@ -52,20 +55,23 @@ impl Param {
 
 #[derive(Clone)]
 pub struct Params {
-    pub items: Vec<Param>
+    pub items: Vec<Param>,
 }
 
 impl Parse for Params {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Params { 
-            items: input.parse_terminated(Param::parse, Token![,])?.into_iter().collect()
+        Ok(Params {
+            items: input
+                .parse_terminated(Param::parse, Token![,])?
+                .into_iter()
+                .collect(),
         })
     }
 }
 
 impl Params {
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for param in self.items.iter() {
             let param = param.build(ctx)?;
             out = quote! { #out #param }
@@ -102,7 +108,11 @@ impl Parse for Construct {
             flattern = false;
         }
         let params = Params::braced(input)?;
-        Ok(Construct { ty, flattern, params })
+        Ok(Construct {
+            ty,
+            flattern,
+            params,
+        })
     }
 }
 
@@ -129,7 +139,7 @@ impl Construct {
         let flattern = if self.flattern {
             quote! { .flattern() }
         } else {
-            quote! { }
+            quote! {}
         };
         let body = self.params.build(ctx)?;
         Ok(quote! {{

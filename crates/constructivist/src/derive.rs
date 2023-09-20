@@ -222,11 +222,7 @@ impl Parse for DeriveSegment {
         let params = content.parse_terminated(Param::parse, Token![,])?;
         let params = params.into_iter().collect();
         let body = Some(input.parse()?);
-        Ok(DeriveSegment {
-            ty,
-            params,
-            body,
-        })
+        Ok(DeriveSegment { ty, params, body })
     }
 }
 

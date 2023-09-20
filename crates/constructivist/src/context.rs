@@ -5,12 +5,15 @@ use quote::{format_ident, quote};
 
 pub struct Context {
     prefix: &'static str,
-    cache: RefCell<HashMap<&'static str, TokenStream>>
+    cache: RefCell<HashMap<&'static str, TokenStream>>,
 }
 
 impl Context {
     pub fn new(prefix: &'static str) -> Self {
-        Self { prefix, cache: RefCell::new(HashMap::new())  }
+        Self {
+            prefix,
+            cache: RefCell::new(HashMap::new()),
+        }
     }
 
     fn cache(&self, key: &'static str, value: TokenStream) -> TokenStream {
@@ -20,7 +23,7 @@ impl Context {
 
     pub fn path(&self, name: &'static str) -> TokenStream {
         if let Some(cached) = self.cache.borrow().get(name).cloned() {
-            return cached
+            return cached;
         }
         let prefix = self.prefix;
         let iprefix = format_ident!("{prefix}");
@@ -41,13 +44,13 @@ impl Context {
         let Ok(manifest) = toml::from_str::<toml::map::Map<String, toml::Value>>(&manifest) else {
             return self.cache(name, lib);
         };
-    
+
         let Some(pkg) = manifest.get("package") else { return self.cache(name, lib) };
         let Some(pkg) = pkg.as_table() else { return self.cache(name, lib) };
         let Some(pkg) = pkg.get("name") else { return self.cache(name, lib) };
         let Some(pkg) = pkg.as_str() else { return self.cache(name, lib) };
         if pkg == &format!("{prefix}_{name}") {
-            self.cache(name, quote!{ crate })
+            self.cache(name, quote! { crate })
         } else if pkg.starts_with(&format!("{prefix}_mod_")) {
             self.cache(name, lib)
         } else if pkg.starts_with(&format!("{prefix}_")) {

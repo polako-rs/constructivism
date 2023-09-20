@@ -14,7 +14,6 @@ pub struct Node {
     position: (f32, f32),
 }
 
-
 // 2. You can `construct!` the `Construct`:
 fn def_02() {
     let node = construct!(Node {
@@ -27,13 +26,11 @@ fn def_02() {
 
 // 3. You can skip declaration of non-required fields
 fn def_03() {
-    let node = construct!(Node {
-        visible: false
-    });
+    let node = construct!(Node { visible: false });
     assert_eq!(node.position.0, 0.)
 }
 
-// 4. You have to mark non-default fields with `#[required]` or you 
+// 4. You have to mark non-default fields with `#[required]` or you
 // get compilation error.
 #[derive(Clone, Copy)]
 pub struct Entity(usize);
@@ -49,9 +46,7 @@ struct Reference {
 // 5. You have to pass all required fiels to `construct!(..)`
 // or you get compilation error
 fn def_05() {
-    let reference = construct!(Reference {
-        target: Entity(23)
-    });
+    let reference = construct!(Reference { target: Entity(23) });
     assert_eq!(reference.target.0, 23);
     assert_eq!(reference.count, 0);
 }
@@ -62,11 +57,10 @@ fn def_05() {
 #[construct(Rect -> Node)]
 pub struct Rect {
     #[default((100., 100.))]
-    size: (f32, f32)
+    size: (f32, f32),
 }
 
-
-// 7. The `Sequence` for `Rect` becomes `Rect -> Node -> Nothing`. The 
+// 7. The `Sequence` for `Rect` becomes `Rect -> Node -> Nothing`. The
 // unwrapped `#[derive(Construct)]` for Rect looks something like this:
 // impl Construct for Rect {
 //     type Sequence = (Rect, Node, Nothing)
@@ -75,7 +69,7 @@ pub struct Rect {
 
 // 8. You can `construct!` the whole `Sequence` within the single call:
 fn def_08() {
-    let (rect, node, /* nothing */) = construct!(Rect {
+    let (rect, node /* nothing */) = construct!(Rect {
         position: (10., 10.),
         size: (10., 10.),
         // I can skip fields, no `visible` here, for example
@@ -89,11 +83,11 @@ fn def_08() {
 // methods for construct's design:
 impl NodeDesign {
     #[allow(unused_variables)]
-    pub fn move_to(&self, entity: Entity, position: (f32, f32)) { }
+    pub fn move_to(&self, entity: Entity, position: (f32, f32)) {}
 }
 impl RectDesign {
     #[allow(unused_variables)]
-    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) { }
+    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) {}
 }
 
 // 10. You can call methods on construct's design. Method resolves
@@ -107,24 +101,21 @@ fn def_10() {
 // 11. You can define and insert `Segment` into construct's `Sequence`:
 #[derive(Segment)]
 pub struct Input {
-    disabled: bool
+    disabled: bool,
 }
 
 #[derive(Construct)]
 #[construct(Button -> Input -> Rect)]
 pub struct Button {
-    pressed: bool
+    pressed: bool,
 }
 
-
-// 12. The `Sequence` for `Button` becomes 
+// 12. The `Sequence` for `Button` becomes
 // `Button -> Input -> Rect -> Node -> Nothing`.
 // You still can `construct!` the whole `Sequence` within
 // the single call:
 fn def_12() {
-    let (button, input, rect, node) = construct!(Button {
-        disabled: true
-    });
+    let (button, input, rect, node) = construct!(Button { disabled: true });
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
     assert_eq!(rect.size.0, 100.);
@@ -137,7 +128,7 @@ fn def_12() {
 // respect it when implement Segment's designes:
 impl<T> InputDesign<T> {
     #[allow(unused_variables)]
-    fn focus(&self, entity: Entity) { }
+    fn focus(&self, entity: Entity) {}
 }
 
 fn def_13() {
@@ -163,7 +154,7 @@ derive_construct! {
 
     // params
     (min: f32 = 0., max: f32 = 1., val: f32 = 0.)
-    
+
     // constructor
     {
         if max < min {
@@ -188,7 +179,7 @@ pub struct Range {
     max: f32,
     val: f32,
 }
-derive_segment!{
+derive_segment! {
     Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
         if max < min {
             max = min;
@@ -203,9 +194,7 @@ derive_segment!{
 pub struct Slider;
 
 fn def_16() {
-    let (_slider, range, _, _) = construct!(Slider {
-        val: 10.
-    });
+    let (_slider, range, _, _) = construct!(Slider { val: 10. });
     assert_eq!(range.min, 0.0);
     assert_eq!(range.max, 1.0);
     assert_eq!(range.val, 1.0);

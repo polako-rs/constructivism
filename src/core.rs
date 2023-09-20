@@ -3,16 +3,16 @@ use std::marker::PhantomData;
 
 pub mod traits {
     pub use super::AsField;
+    pub use super::Construct;
     pub use super::ConstructItem;
     pub use super::ExtractField;
     pub use super::ExtractValue;
     pub use super::Flattern;
+    pub use super::Mixed;
+    pub use super::New;
+    pub use super::Segment;
     pub use super::Singleton;
     pub use super::A;
-    pub use super::Construct;
-    pub use super::Mixed;
-    pub use super::Segment;
-    pub use super::New;
 }
 
 pub trait ConstructItem {
@@ -23,7 +23,7 @@ pub trait ConstructItem {
 pub trait Construct: ConstructItem {
     type Base: Construct;
     type Sequence;
-    
+
     type Fields: Singleton;
     type Design: Singleton;
 
@@ -82,16 +82,28 @@ impl<T> Params<T> {
     }
 }
 
-
-
-pub trait Extends<T: Construct> { }
-impl<E: Construct<NestedSequence = BaseSeq>, T: Construct<NestedSequence = Seq>, Seq: Contains<Exclusive, BaseSeq>, BaseSeq> Extends<E> for T { }
-pub trait Is<T: Construct> { }
-impl<E: Construct<NestedSequence = BaseSeq>, T: Construct<NestedSequence = Seq>, Seq: Contains<Inclusive, BaseSeq>, BaseSeq> Is<E> for T { }
+pub trait Extends<T: Construct> {}
+impl<
+        E: Construct<NestedSequence = BaseSeq>,
+        T: Construct<NestedSequence = Seq>,
+        Seq: Contains<Exclusive, BaseSeq>,
+        BaseSeq,
+    > Extends<E> for T
+{
+}
+pub trait Is<T: Construct> {}
+impl<
+        E: Construct<NestedSequence = BaseSeq>,
+        T: Construct<NestedSequence = Seq>,
+        Seq: Contains<Inclusive, BaseSeq>,
+        BaseSeq,
+    > Is<E> for T
+{
+}
 
 pub struct Inclusive;
 pub struct Exclusive;
-pub trait Contains<I, T> { }
+pub trait Contains<I, T> {}
 
 pub struct ParamConflict<N>(PhantomData<N>);
 impl<N> ParamConflict<N> {

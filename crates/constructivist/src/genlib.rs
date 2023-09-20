@@ -5,13 +5,15 @@ use quote::{format_ident, quote};
 use syn::{parse::Parse, LitInt};
 
 pub struct ConstructivistLimits {
-    pub max_fields: u8
+    pub max_fields: u8,
 }
 
 impl Parse for ConstructivistLimits {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let max_fields = input.parse::<LitInt>()?;
-        Ok(ConstructivistLimits { max_fields: max_fields.base10_parse()? })
+        Ok(ConstructivistLimits {
+            max_fields: max_fields.base10_parse()?,
+        })
     }
 }
 
@@ -182,7 +184,7 @@ fn impl_all_flattern(max_depth: u8) -> TokenStream {
 }
 
 fn impl_all_contains(max_size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     for size in 1..max_size + 1 {
         let contains = impl_contains(size);
         out = quote! { #out #contains }
@@ -485,9 +487,9 @@ fn impl_mixed(left: u8, right: u8) -> TokenStream {
 // impl<T0, T1, T2, T3> Contains<(T2, (T3, ()))> for (T0, (T1, (T2, (T3, ())))) { }
 // impl<T0, T1, T2, T3> Contains<(T1, (T2, (T3, ())))> for (T0, (T1, (T2, (T3, ())))) { }
 fn impl_contains(size: u8) -> TokenStream {
-    let mut out = quote! { };
+    let mut out = quote! {};
     let mut tfor = quote! { () };
-    let mut tin = quote! { };
+    let mut tin = quote! {};
     for i in 0..size {
         let ti = format_ident!("T{}", size - i - 1);
         tfor = quote! { (#ti, #tfor) };
@@ -507,5 +509,4 @@ fn impl_contains(size: u8) -> TokenStream {
         impl<#tin> Contains<Inclusive, #tfor> for #tfor { }
     };
     out
-
 }
