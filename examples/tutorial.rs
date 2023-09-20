@@ -133,8 +133,8 @@ fn step_13() {
     assert_eq!(radio.value, "option_0".to_string());
 }
 
-// 14. You can implement static protocols. It will be accesable for all inherited items.
-// Implement protocols for Node construct
+// 14. You can implement methods for Design. It will be accesable for all inherited items.
+// Implement Node's design
 impl NodeDesign {
     #[allow(unused_variables)]
     pub fn add_child(&self, entity: Entity) {}
@@ -143,7 +143,7 @@ impl NodeDesign {
 fn step_14() {
     // It is accessable from Button as well as from everything
     // that extends Node
-    protocols!(Button).add_child(Entity(23));
+    design!(Button).add_child(Entity(23));
 }
 
 // 15. You can check if construct extends other construct at any level with `Extends<T>` and `Is<T>` traits
