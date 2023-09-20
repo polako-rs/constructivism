@@ -20,7 +20,7 @@ pub fn construct_derive(input: pm::TokenStream) -> pm::TokenStream {
     };
     pm::TokenStream::from(stream)
 }
-#[proc_macro_derive(Mixin, attributes(required, default))]
+#[proc_macro_derive(Segment, attributes(required, default))]
 pub fn segment_derive(input: pm::TokenStream) -> pm::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let constructable = match DeriveSegment::from_derive(input) {

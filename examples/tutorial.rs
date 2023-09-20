@@ -95,20 +95,20 @@ fn step_09() {
     assert_eq!(node.visible, true);
 }
 
-// 10. You can derive Mixin as well.
-#[derive(Mixin)]
+// 10. You can derive Segment as well.
+#[derive(Segment)]
 pub struct Input {
     disabled: bool,
 }
 
-// 11. You can inject mixins into constructs:
+// 11. You can inject segments into constructs:
 #[derive(Construct)]
 #[construct(Button -> Input -> Rect)]
 pub struct Button {
     pressed: bool,
 }
 
-// 12. You can pass arguments to inheritance tree (with mixins) as well
+// 12. You can pass arguments to sequence (with segments) as well
 fn step_12() {
     let (button, input, rect, node) = construct!(Button { disabled: true });
     assert_eq!(button.pressed, false);
@@ -117,7 +117,7 @@ fn step_12() {
     assert_eq!(node.position.0, 0.);
 }
 
-// 13. When you extend from other construct, you extend from its mixins as well.
+// 13. When you extend from other construct, you extend from its segments as well.
 #[derive(Construct)]
 #[construct(Radio -> Button)]
 pub struct Radio {
@@ -135,7 +135,7 @@ fn step_13() {
 
 // 14. You can implement static protocols. It will be accesable for all inherited items.
 // Implement protocols for Node construct
-impl node_construct::Protocols {
+impl NodeDesign {
     #[allow(unused_variables)]
     pub fn add_child(&self, entity: Entity) {}
 }
@@ -157,7 +157,7 @@ fn step_15() {
     takes_everything_that_node(&rect);
     takes_everything_that_node(&node);
 
-    // won't compile: Extends<T> respects only Constructs, not Mixins
+    // won't compile: Extends<T> respects only Constructs, not Segments
     // takes_everything_that_extends_node(input);
 
 

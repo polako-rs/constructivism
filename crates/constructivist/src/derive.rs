@@ -241,7 +241,7 @@ impl DeriveSegment {
             "{}_segment",
             type_ident.to_string().to_lowercase()
         );
-        // let design = format_ident!("{type_ident}Design");
+        let design = format_ident!("{type_ident}Design");
         let BuildedParams {
             fields,
             fields_new,
@@ -263,9 +263,6 @@ impl DeriveSegment {
                 #fields
                 __base__: ::std::marker::PhantomData<T>,
             }
-            pub struct Protocols<T: #lib::Singleton>(
-                ::std::marker::PhantomData<T>
-            );
             impl<T: #lib::Singleton> #lib::Singleton for Fields<T> {
                 fn instance() -> &'static Self {
                     &Fields {
@@ -274,18 +271,7 @@ impl DeriveSegment {
                     }
                 }
             }
-            impl<T: #lib::Singleton> #lib::Singleton for Protocols<T> {
-                fn instance() -> &'static Self {
-                    &Protocols(::std::marker::PhantomData)
-                }
-            }
             impl<T: #lib::Singleton + 'static> std::ops::Deref for Fields<T> {
-                type Target = T;
-                fn deref(&self) -> &Self::Target {
-                    T::instance()
-                }
-            }
-            impl<T: #lib::Singleton + 'static> std::ops::Deref for Protocols<T> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
                     T::instance()
@@ -305,9 +291,23 @@ impl DeriveSegment {
                     #construct
                 }
             }
-            impl #lib::Mixin for #type_ident {
+            impl #lib::Segment for #type_ident {
                 type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
-                type Protocols<T: #lib::Singleton + 'static> = #mod_ident::Protocols<T>;
+                type Protocols<T: #lib::Singleton + 'static> = #design<T>;
+            }
+            pub struct #design<T: #lib::Singleton>(
+                ::std::marker::PhantomData<T>
+            );
+            impl<T: #lib::Singleton> #lib::Singleton for #design<T> {
+                fn instance() -> &'static Self {
+                    &#design(::std::marker::PhantomData)
+                }
+            }
+            impl<T: #lib::Singleton + 'static> std::ops::Deref for #design<T> {
+                type Target = T;
+                fn deref(&self) -> &Self::Target {
+                    T::instance()
+                }
             }
         })
     }
@@ -371,6 +371,8 @@ impl DeriveConstruct {
             "{}_construct",
             type_ident.to_string().to_lowercase()
         );
+        let design = format_ident!("{}Design", type_ident.to_string());
+        let mut deref_design;
         let BuildedParams {
             fields,
             fields_new,
@@ -387,18 +389,16 @@ impl DeriveConstruct {
                 quote! { () }
             };
             let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
-            let mut deref_protocols = quote! { <#extends as #lib::Construct>::Protocols };
-            for mixin in self.sequence.segments.iter() {
-                deref_fields = quote! { <#mixin as #lib::Mixin>::Fields<#deref_fields> };
-                deref_protocols = quote! { <#mixin as #lib::Mixin>::Protocols<#deref_protocols> };
+            deref_design = quote! { <#extends as #lib::Construct>::Protocols };
+            for segment in self.sequence.segments.iter() {
+                deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
+                deref_design = quote! { <#segment as #lib::Segment>::Protocols<#deref_design> };
             }
 
             quote! {
                 pub struct Fields {
                     #fields
                 }
-
-                pub struct Protocols;
                 impl #lib::Singleton for Fields {
                     fn instance() -> &'static Self {
                         &Fields {
@@ -406,22 +406,10 @@ impl DeriveConstruct {
                         }
                     }
                 }
-                impl #lib::Singleton for Protocols {
-                    fn instance() -> &'static Self {
-                        &Protocols
-                    }
-                }
                 impl ::std::ops::Deref for Fields {
                     type Target = #deref_fields;
                     fn deref(&self) -> &Self::Target {
                         <#deref_fields as #lib::Singleton>::instance()
-                    }
-                }
-                impl #lib::Protocols<#ty> for Protocols { }
-                impl ::std::ops::Deref for Protocols {
-                    type Target = #deref_protocols;
-                    fn deref(&self) -> &Self::Target {
-                        <#deref_protocols as #lib::Singleton>::instance()
                     }
                 }
 
@@ -432,6 +420,7 @@ impl DeriveConstruct {
             {
                 throw!(self.sequence.this, "Seqence head doesn't match struct name");
             }
+            let this = &self.sequence.this;
             let extends = &self.sequence.next;
             let inheritance = if !extends.is_nothing() {
                 quote! { (#type_ident, <#extends as #lib::Construct>::Inheritance) }
@@ -450,17 +439,17 @@ impl DeriveConstruct {
             let mut deconstruct = quote! {};
             let mut construct = quote! { <Self::Extends as #lib::Construct>::construct(rest) };
             for segment in self.sequence.segments.iter().rev() {
-                let mixin_params =
+                let segment_params =
                     format_ident!("{}_params", segment.as_ident()?.to_string().to_lowercase());
                 if mixed_params.is_empty() {
                     mixed_params = quote! { <#segment as #lib::ConstructItem>::Params, };
-                    deconstruct = quote! { #mixin_params };
+                    deconstruct = quote! { #segment_params };
                 } else {
                     mixed_params = quote! {  #lib::Mix<<#segment as #lib::ConstructItem>::Params, #mixed_params> };
-                    deconstruct = quote! { (#mixin_params, #deconstruct) };
+                    deconstruct = quote! { (#segment_params, #deconstruct) };
                 }
                 expanded_params = quote! { #lib::Mix<<#segment as #lib::ConstructItem>::Params, #expanded_params> };
-                construct = quote! { ( <#segment as #lib::ConstructItem>::construct_item(#mixin_params), #construct ) };
+                construct = quote! { ( <#segment as #lib::ConstructItem>::construct_item(#segment_params), #construct ) };
                 hierarchy = quote! { (#segment, #hierarchy) };
             }
             let mixed_params = if mixed_params.is_empty() {
@@ -483,19 +472,19 @@ impl DeriveConstruct {
                 impl #lib::Construct for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
-                    type Protocols = #mod_ident::Protocols;
+                    type Protocols = #design;
                     type MixedParams = (#mixed_params);
                     type NestedComponents = (Self, #hierarchy);
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
                     type Components = <Self::NestedComponents as #lib::Flattern>::Output;
                     type Inheritance = #inheritance;
 
-
                     fn construct<P, const I: u8>(params: P) -> Self::NestedComponents where P: #lib::ExtractParams<
                         I, Self::MixedParams,
                         Value = <Self::MixedParams as #lib::Extractable>::Output,
                         Rest = <<<Self::Extends as #lib::Construct>::ExpandedParams as #lib::Extractable>::Input as #lib::AsParams>::Defined
                     > {
+                        let _: Option<#this> = None;
                         let (#deconstruct, rest) = params.extract_params();
                         #construct
                     }
@@ -523,6 +512,18 @@ impl DeriveConstruct {
                     #construct
                 }
             }
+            pub struct #design;
+                impl #lib::Singleton for #design {
+                    fn instance() -> &'static Self {
+                        &#design
+                    }
+                }
+                impl ::std::ops::Deref for #design {
+                    type Target = #deref_design;
+                    fn deref(&self) -> &Self::Target {
+                        <#deref_design as #lib::Singleton>::instance()
+                    }
+                }
             #derive
         })
     }

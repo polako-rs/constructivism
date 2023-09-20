@@ -4,7 +4,6 @@ pub mod genlib;
 pub mod construct;
 pub mod throw;
 pub mod context;
-pub mod macros;
 
 pub mod prelude {
     pub use crate::derive::{DeriveConstruct, DeriveSegment};
