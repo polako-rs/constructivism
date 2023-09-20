@@ -23,7 +23,7 @@ pub trait ConstructItem {
 pub trait Construct: ConstructItem {
     type Extends: Construct;
     type Fields: Singleton;
-    type Protocols: Singleton;
+    type Design: Singleton;
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
     type NestedComponents: Flattern;
@@ -39,7 +39,7 @@ pub trait Construct: ConstructItem {
 
 pub trait Segment: ConstructItem {
     type Fields<T: Singleton + 'static>: Singleton;
-    type Protocols<T: Singleton + 'static>: Singleton;
+    type Design<T: Singleton + 'static>: Singleton;
 }
 
 // #[macro_export]
@@ -90,9 +90,9 @@ pub trait Segment: ConstructItem {
 // }
 
 #[macro_export]
-macro_rules! protocols {
+macro_rules! design {
     ($t:ty) => {
-        <<$t as $crate::Construct>::Protocols as $crate::Singleton>::instance()
+        <<$t as $crate::Construct>::Design as $crate::Singleton>::instance()
     };
 }
 
@@ -107,7 +107,7 @@ impl ConstructItem for () {
 
 impl Construct for () {
     type Fields = ();
-    type Protocols = ();
+    type Design = ();
     type Extends = ();
     type NestedComponents = ();
     type MixedParams = ();
@@ -169,28 +169,6 @@ pub trait New<T> {
 impl<N: New<T>, T> Param<N, T> {
     pub fn value(&self, value: T) -> N {
         N::new(value)
-    }
-}
-
-pub trait Protocols<Protocol: ?Sized> {}
-
-pub struct MutableMethod<This, In, Out>(pub fn(this: &mut This, input: In) -> Out);
-impl<This, In, Out> MutableMethod<This, In, Out> {
-    pub fn call(&self, this: &mut This, input: In) -> Out {
-        (self.0)(this, input)
-    }
-}
-pub struct ImutableMethod<This, In, Out>(pub fn(this: &This, input: In) -> Out);
-impl<This, In, Out> ImutableMethod<This, In, Out> {
-    pub fn call(&self, this: &This, input: In) -> Out {
-        (self.0)(this, input)
-    }
-}
-
-pub struct StaticMethod<This, In, Out>(pub PhantomData<This>, pub fn(input: In) -> Out);
-impl<This, In, Out> StaticMethod<This, In, Out> {
-    pub fn call(&self, input: In) -> Out {
-        (self.1)(input)
     }
 }
 

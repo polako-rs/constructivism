@@ -293,7 +293,7 @@ impl DeriveSegment {
             }
             impl #lib::Segment for #type_ident {
                 type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
-                type Protocols<T: #lib::Singleton + 'static> = #design<T>;
+                type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
             pub struct #design<T: #lib::Singleton>(
                 ::std::marker::PhantomData<T>
@@ -389,10 +389,10 @@ impl DeriveConstruct {
                 quote! { () }
             };
             let mut deref_fields = quote! { <#extends as #lib::Construct>::Fields };
-            deref_design = quote! { <#extends as #lib::Construct>::Protocols };
+            deref_design = quote! { <#extends as #lib::Construct>::Design };
             for segment in self.sequence.segments.iter() {
                 deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
-                deref_design = quote! { <#segment as #lib::Segment>::Protocols<#deref_design> };
+                deref_design = quote! { <#segment as #lib::Segment>::Design<#deref_design> };
             }
 
             quote! {
@@ -472,7 +472,7 @@ impl DeriveConstruct {
                 impl #lib::Construct for #type_ident {
                     type Extends = #extends;
                     type Fields = #mod_ident::Fields;
-                    type Protocols = #design;
+                    type Design = #design;
                     type MixedParams = (#mixed_params);
                     type NestedComponents = (Self, #hierarchy);
                     type ExpandedParams = #lib::Mix<(#type_params), #expanded_params>;
