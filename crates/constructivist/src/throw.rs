@@ -4,6 +4,6 @@ macro_rules! throw {
         return Err(syn::Error::new($loc.span(), $msg));
     };
     ($loc:expr, $msg:literal, $($arg:expr),*) => {
-        return Err(syn::Error::new($loc.span(), format!($msg, $(arg),*)));
+        return Err(syn::Error::new($loc.span(), format!($msg, $($arg),*)));
     };
 }

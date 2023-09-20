@@ -7,7 +7,7 @@ pub mod context;
 pub mod macros;
 
 pub mod prelude {
-    pub use crate::derive::{ConstructMode, Constructable};
+    pub use crate::derive::{DeriveConstruct, DeriveSegment};
     pub use crate::genlib;
     pub use crate::construct::Construct;
     pub use crate::context::Context;

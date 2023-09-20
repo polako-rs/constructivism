@@ -1,9 +1,10 @@
 use proc_macro2::Ident;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{spanned::Spanned, Type};
 
 pub trait TypeExt {
     fn as_ident(&self) -> syn::Result<Ident>;
+    fn is_nothing(&self) -> bool;
 }
 impl TypeExt for Type {
     fn as_ident(&self) -> syn::Result<Ident> {
@@ -23,5 +24,8 @@ impl TypeExt for Type {
             ));
         }
         Ok(path.path.segments.last().unwrap().ident.clone())
+    }
+    fn is_nothing(&self) -> bool {
+        &self.into_token_stream().to_string() == "Nothing"
     }
 }
