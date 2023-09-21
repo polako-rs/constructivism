@@ -9,6 +9,7 @@ edition = "2021"
 members = [
     "crates/constructivism_macro",
     "crates/constructivism_macro",
+    "crates/constructivism_macro_gen",
     
     "examples/stranger",
 ]

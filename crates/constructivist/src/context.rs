@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 pub struct Context {
-    prefix: &'static str,
+    pub prefix: &'static str,
     cache: RefCell<HashMap<&'static str, TokenStream>>,
 }
 

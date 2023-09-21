@@ -54,18 +54,6 @@ pub fn implement_constructivism(max_size: u8) -> TokenStream {
     }
 }
 
-pub fn implement_constructivism_macro(path: &str) -> TokenStream {
-    let path = format!("\"{path}\"");
-    let source = include_str!("../../constructivism_macro/src/lib.rs");
-    let source = source.replace("\"constructivism\"", &path);
-    let Ok(constructivism_macro) = TokenStream::from_str(source.as_str()) else {
-        return quote! { compile_error! ("Coudn't parse constructivism_macro")}
-    };
-    quote! { 
-        #constructivism_macro
-    }
-}
-
 fn impl_all_extract_field(max_size: u8) -> TokenStream {
     let mut out = quote! {};
     for size in 1..max_size + 1 {

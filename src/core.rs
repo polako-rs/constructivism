@@ -19,6 +19,7 @@ pub trait ConstructItem {
     fn construct_item(params: Self::Params) -> Self;
 }
 
+/// Main building block of constructivism
 pub trait Construct: ConstructItem {
     type Base: Construct;
     type Sequence;
