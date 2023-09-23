@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{braced, parenthesized, parse::Parse, Expr, Token, Type};
+use syn::{braced, parenthesized, spanned::Spanned, parse::Parse, Expr, Token, Type};
 
-use quote::quote;
+use quote::{quote, format_ident};
 
 use crate::{context::Context, throw};
 
@@ -150,5 +150,59 @@ impl Construct {
             let defined_params = params.defined();
             <#ty as #lib::Construct>::construct(defined_params)#flattern
         }})
+    }
+}
+
+
+pub struct Prop {
+    pub root: Type,
+    pub path: Vec<Ident>
+}
+
+impl Parse for Prop {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let root = input.parse()?;
+        let mut path = vec![];
+        while input.peek(Token![.]) {
+            input.parse::<Token![.]>()?;
+            path.push(input.parse()?)
+        }
+        Ok(Prop { root, path })
+    }
+}
+
+impl Prop {
+    pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
+        let lib = ctx.constructivism();
+        let root = &self.root;
+        let mut get = quote! { <<#root as #lib::Construct>::Props as #lib::Singleton>::instance() };
+        let mut set = get.clone();
+        if self.path.len() == 0 {
+            throw!(self.root, "Missing property path.");
+        }
+        let last = self.path.len() - 1;
+
+        for (idx, part) in self.path.iter().enumerate() {
+            let getters = format_ident!("{}_getters", part);
+            let setters = format_ident!("{}_setters", part);
+            let setter = format_ident!("set_{}", part);
+            if idx == 0 {
+                get = quote! { #get.#getters(host) };
+                set = quote! { #set.#setters(host) };
+            }
+            get = quote! { #get.#part() };
+            if idx < last {
+                set = quote! { #set.#part() };
+            } else {
+                get = quote! { #get.into_value() };
+                set = quote! { #set.#setter(value)}
+            }
+        }
+        Ok(quote! {
+            #lib::Prop::new(
+                |host| #get,
+                |host, value| #set
+            )
+        })
     }
 }

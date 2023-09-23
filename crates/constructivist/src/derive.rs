@@ -4,8 +4,8 @@ use crate::throw;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    bracketed, parenthesized, parse::Parse, spanned::Spanned, Data, DeriveInput, Expr, Ident,
-    Token, Type,
+    bracketed, parenthesized, parse::{Parse, ParseStream}, spanned::Spanned, Data, DeriveInput, Expr, Ident,
+    Token, Type, Field, Fields,
 };
 
 enum ParamType {
@@ -211,6 +211,7 @@ impl Sequence {
 pub struct DeriveSegment {
     ty: Type,
     params: Vec<Param>,
+    props: Props,
     body: Option<Expr>,
 }
 
@@ -222,7 +223,7 @@ impl Parse for DeriveSegment {
         let params = content.parse_terminated(Param::parse, Token![,])?;
         let params = params.into_iter().collect();
         let body = Some(input.parse()?);
-        Ok(DeriveSegment { ty, params, body })
+        Ok(DeriveSegment { ty, params, body, props: Props::default() })
     }
 }
 
@@ -241,7 +242,8 @@ impl DeriveSegment {
         };
         let params = Params::from_fields(&input.fields, "Segment", "derive_segment")?;
         let body = None;
-        Ok(DeriveSegment { ty, params, body })
+        let props = Props::from_fields(&input.fields)?;
+        Ok(DeriveSegment { ty, params, props, body })
     }
 
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
@@ -262,6 +264,9 @@ impl DeriveSegment {
             type_params,
             type_params_deconstruct,
         } = self.params.build(ctx, &ty, &mod_ident)?;
+        let props = self.props.build(ctx, ty)?;
+        let getters = self.props.build_getters(ctx)?;
+        let setters = self.props.build_setters(ctx)?;
         let construct = if let Some(expr) = &self.body {
             expr.clone()
         } else {
@@ -271,6 +276,9 @@ impl DeriveSegment {
             .unwrap()
         };
         let decls = quote! {
+
+            // fields
+
             pub struct Fields<T: #lib::Singleton> {
                 #fields
                 __base__: ::std::marker::PhantomData<T>,
@@ -289,6 +297,48 @@ impl DeriveSegment {
                     T::instance()
                 }
             }
+
+            // Props
+            pub struct Props<T: #lib::Singleton>(
+                ::std::marker::PhantomData<T>,
+            );
+            pub struct Getters<'a>(&'a #ty);
+            pub struct Setters<'a>(&'a mut #ty);
+            impl<'a> #lib::Getters<'a, #ty> for Getters<'a> {
+                fn from_ref(from: &'a #ty) -> Self {
+                    Self(from)
+                }
+                fn into_value(self) -> #lib::Value<'a, #ty> {
+                    #lib::Value::Ref(&self.0)
+                }
+            }
+            impl<'a> #lib::Setters<'a, #ty> for Setters<'a> {
+                fn from_mut(from: &'a mut #ty) -> Self {
+                    Self(from)
+                }
+            }
+            impl<T: #lib::Singleton> Props<T> {
+                #props
+            }
+            impl<'a> Getters<'a> {
+                #getters
+            }
+            impl<'a> Setters<'a> {
+                #setters
+            }
+            impl<T: #lib::Singleton + 'static> std::ops::Deref for Props<T> {
+                type Target = T;
+                fn deref(&self) -> &Self::Target {
+                    T::instance()
+                }
+            }
+            impl<T: #lib::Singleton> #lib::Singleton for Props<T> {
+                fn instance() -> &'static Self {
+                    &Props(::std::marker::PhantomData)
+                }
+            }
+
+
         };
         Ok(quote! {
             mod #mod_ident {
@@ -298,12 +348,15 @@ impl DeriveSegment {
             }
             impl #lib::ConstructItem for #type_ident {
                 type Params = ( #type_params );
+                type Getters<'a> = #mod_ident::Getters<'a>;
+                type Setters<'a> = #mod_ident::Setters<'a>;
                 fn construct_item(params: Self::Params) -> Self {
                     let (#type_params_deconstruct) = params;
                     #construct
                 }
             }
             impl #lib::Segment for #type_ident {
+                type Props<T: #lib::Singleton + 'static> = #mod_ident::Props<T>;
                 type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
                 type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
@@ -325,10 +378,179 @@ impl DeriveSegment {
     }
 }
 
+pub enum Prop {
+    Construct { ident: Ident, ty: Type },
+    Value { ident: Ident, ty: Type },
+    GetSet { ident: Ident, get: Ident, set: Ident, ty: Type, },
+}
+impl Prop {
+    pub fn from_field(field: &Field) -> syn::Result<Self> {
+        let ty = field.ty.clone();
+        let Some(ident) = field.ident.clone() else {
+            throw!(field, "Anonymous fields not supported.");
+        };
+        let mut attrs = field.attrs.iter().filter(|a| a.path().is_ident("prop"));
+        if let Some(attr) = attrs.next() {
+            attr.parse_args_with(|input: ParseStream| {
+                let spec = input.parse::<Ident>()?;
+                if input.peek(Token![,]) {
+                    let get = spec;
+                    input.parse::<Token![,]>()?;
+                    let set = input.parse()?;
+                    return Ok(Prop::GetSet { ty, ident, get, set });
+                }
+                if &spec.to_string() == "construct" {
+                    Ok(Prop::Construct { ident, ty })
+                } else {
+                    throw!(spec, "Expected construct, skip or get, set");
+                }
+            })
+        } else if let Some(ident) = field.ident.clone() {
+            Ok(Prop::Value { ty, ident })
+        } else {
+            throw!(field, "#[param(get, set)] is required for unnamed struct fields");
+        }
+    }
+
+    pub fn build_getter(&self, ctx: &Context) -> syn::Result<TokenStream> {
+        let lib = ctx.constructivism();
+        Ok(match self {
+            Prop::Value { ident, ty } => quote! {
+                pub fn #ident(self) -> #lib::Value<'a, #ty> {
+                    #lib::Value::Ref(&self.0.#ident)
+                }
+            },
+            Prop::Construct { ident, ty } => quote! {
+                pub fn #ident(self) -> <#ty as #lib::ConstructItem>::Getters<'a> {
+                    <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
+                        &self.0.#ident
+                    )
+                }
+            },
+            Prop::GetSet { ident, get, ty, .. } => quote! {
+                pub fn #ident(self) -> #lib::Value<'a, #ty> {
+                    #lib::Value::Val(self.0.#get())
+                }
+            },
+        })
+    }
+    pub fn build_setter(&self, ctx: &Context) -> syn::Result<TokenStream> {
+        let lib = ctx.path("constructivism");
+        Ok(match self {
+            Prop::Value { ident, ty } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #setter(self, value: #ty) {
+                        self.0.#ident = value;
+                    }
+                }
+            },
+            Prop::Construct { ident, ty } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #ident(self) -> <#ty as #lib::ConstructItem>::Setters<'a> {
+                        <<#ty as #lib::ConstructItem>::Setters<'a> as #lib::Setters<'a, #ty>>::from_mut(
+                            &mut self.0.#ident
+                        )
+                    }
+                    pub fn #setter(self, value: #ty) {
+                        self.0.#ident = value;
+                    }
+                }
+            },
+            Prop::GetSet { ident, set, ty, .. } => quote! {
+                pub fn #ident(self, value: #ty) {
+                    self.0.#set(value);
+                }
+            },
+        })
+    }
+}
+
+#[derive(Default)]
+pub struct Props(Vec<Prop>);
+impl Props {
+    pub fn from_fields(fields: &Fields) -> syn::Result<Self> {
+        let mut props = vec![];
+        for field in fields.iter() {
+        
+            if let Some(attr) = field.attrs.iter().find(|a| a.path().is_ident("prop")) {
+                let skip = attr.parse_args_with(|input: ParseStream| {
+                    if let Ok(ident) = input.parse::<Ident>() {
+                        if &ident.to_string() == "skip" && input.is_empty() {
+                            return Ok(true)
+                        }
+                    }
+                    Ok(false)
+                })?;
+                if skip {
+                    continue;
+                }
+            }
+            props.push(Prop::from_field(field)?)
+        }
+        Ok(Props(props))
+    }
+    pub fn build_getters(&self, ctx: &Context) -> syn::Result<TokenStream> {
+        let mut out = quote! { };
+        for prop in self.iter() {
+            let getter = prop.build_getter(ctx)?;
+            out = quote! { #out #getter }
+        }
+        Ok(out)
+    }
+    pub fn build_setters(&self, ctx: &Context) -> syn::Result<TokenStream> {
+        let mut out = quote! { };
+        for prop in self.iter() {
+            let setter = prop.build_setter(ctx)?;
+            out = quote! { #out #setter }
+        }
+        Ok(out)
+    }
+
+    pub fn build(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+        let mut out = quote! { };
+        let lib = ctx.constructivism();
+        for prop in self.iter() {
+            match prop {
+                Prop::Value { ident, .. } |
+                Prop::Construct { ident, .. } |
+                Prop::GetSet { ident, .. }  => {
+                    let ident_getters = format_ident!("{}_getters", ident);
+                    let ident_setters = format_ident!("{}_setters", ident);
+                    out = quote! { #out 
+                        pub fn #ident_getters<'a>(&self, from: &'a #this) -> Getters<'a> {
+                            <Getters as #lib::Getters<#this>>::from_ref(from)
+                        }
+                        pub fn #ident_setters<'a>(&self, from: &'a mut #this) -> Setters<'a> {
+                            <Setters as #lib::Setters<#this>>::from_mut(from)
+                        }
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    
+}
+impl std::ops::Deref for Props {
+    type Target = Vec<Prop>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for Props {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub struct DeriveConstruct {
     ty: Type,
     sequence: Sequence,
     params: Vec<Param>,
+    props: Props,
     body: Option<Expr>,
 }
 
@@ -346,6 +568,7 @@ impl Parse for DeriveConstruct {
             params,
             body,
             sequence,
+            props: Props::default(),
         })
     }
 }
@@ -365,11 +588,13 @@ impl DeriveConstruct {
             throw!(input.ident, "#[derive(Construct)] only supports named structs. You can use `derive_construct!` for complex cases.");
         };
         let params = Params::from_fields(&input.fields, "Construct", "derive_construct")?;
+        let props = Props::from_fields(&input.fields)?;
         let body = None;
         Ok(DeriveConstruct {
             ty,
             sequence,
             params,
+            props,
             body,
         })
     }
@@ -393,6 +618,9 @@ impl DeriveConstruct {
             type_params,
             type_params_deconstruct,
         } = self.params.build(ctx, &ty, &mod_ident)?;
+        let props = self.props.build(ctx, ty)?;
+        let getters = self.props.build_getters(ctx)?;
+        let setters = self.props.build_setters(ctx)?;
         let decls = {
             let base = &self.sequence.next;
             let base = if !base.is_nothing() {
@@ -401,13 +629,16 @@ impl DeriveConstruct {
                 quote! { () }
             };
             let mut deref_fields = quote! { <#base as #lib::Construct>::Fields };
+            let mut deref_props = quote! { <#base as #lib::Construct>::Props };
             deref_design = quote! { <#base as #lib::Construct>::Design };
             for segment in self.sequence.segments.iter() {
                 deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
                 deref_design = quote! { <#segment as #lib::Segment>::Design<#deref_design> };
+                deref_props = quote! { <#segment as #lib::Segment>::Props<#deref_props> };
             }
 
             quote! {
+                // Fields
                 pub struct Fields {
                     #fields
                 }
@@ -424,7 +655,44 @@ impl DeriveConstruct {
                         <#deref_fields as #lib::Singleton>::instance()
                     }
                 }
-
+                
+                // Props
+                pub struct Props;
+                pub struct Getters<'a>(&'a #ty);
+                pub struct Setters<'a>(&'a mut #ty);
+                impl<'a> #lib::Getters<'a, #ty> for Getters<'a> {
+                    fn from_ref(from: &'a #ty) -> Self {
+                        Self(from)
+                    }
+                    fn into_value(self) -> #lib::Value<'a, #ty> {
+                        #lib::Value::Ref(&self.0)
+                    }
+                }
+                impl<'a> #lib::Setters<'a, #ty> for Setters<'a> {
+                    fn from_mut(from: &'a mut #ty) -> Self {
+                        Self(from)
+                    }
+                }
+                impl Props {
+                    #props
+                }
+                impl<'a> Getters<'a> {
+                    #getters
+                }
+                impl<'a> Setters<'a> {
+                    #setters
+                }
+                impl std::ops::Deref for Props {
+                    type Target = #deref_props;
+                    fn deref(&self) -> &Self::Target {
+                        <#deref_props as #lib::Singleton>::instance()
+                    }
+                }
+                impl #lib::Singleton for Props {
+                    fn instance() -> &'static Self {
+                        &Props
+                    }
+                }
             }
         };
         let derive = {
@@ -480,6 +748,7 @@ impl DeriveConstruct {
                     type Sequence = <Self::NestedSequence as #lib::Flattern>::Output;
                     type Base = #base;
                     type Fields = #mod_ident::Fields;
+                    type Props = #mod_ident::Props;
                     type Design = #design;
                     type MixedParams = (#mixed_params);
                     type NestedSequence = (Self, #base_sequence);
@@ -513,6 +782,8 @@ impl DeriveConstruct {
             }
             impl #lib::ConstructItem for #type_ident {
                 type Params = ( #type_params );
+                type Getters<'a> = #mod_ident::Getters<'a>;
+                type Setters<'a> = #mod_ident::Setters<'a>;
                 fn construct_item(params: Self::Params) -> Self {
                     let (#type_params_deconstruct) = params;
                     #construct

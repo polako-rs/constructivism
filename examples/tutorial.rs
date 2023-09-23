@@ -37,7 +37,7 @@ pub struct Entity(usize);
 
 #[derive(Construct)]
 #[construct(Reference -> Nothing)]
-struct Reference {
+pub struct Reference {
     #[required]
     target: Entity,
     count: usize,

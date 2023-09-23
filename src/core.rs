@@ -14,8 +14,10 @@ pub mod traits {
     pub use super::A;
 }
 
-pub trait ConstructItem {
+pub trait ConstructItem: Sized {
     type Params: Extractable;
+    type Getters<'a>: Getters<'a, Self>;
+    type Setters<'a>: Setters<'a, Self>;
     fn construct_item(params: Self::Params) -> Self;
 }
 
@@ -26,6 +28,7 @@ pub trait Construct: ConstructItem {
 
     type Fields: Singleton;
     type Design: Singleton;
+    type Props: Singleton;
 
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
@@ -41,6 +44,7 @@ pub trait Construct: ConstructItem {
 pub trait Segment: ConstructItem {
     type Fields<T: Singleton + 'static>: Singleton;
     type Design<T: Singleton + 'static>: Singleton;
+    type Props<T: Singleton + 'static>: Singleton;
 }
 
 #[macro_export]
@@ -50,8 +54,26 @@ macro_rules! design {
     };
 }
 
+pub struct NothingGetters<'a>(&'a ());
+pub struct NothingSetters<'a>(&'a mut ());
+impl<'a> Getters<'a, ()> for NothingGetters<'a> {
+    fn from_ref(from: &'a ()) -> Self {
+        NothingGetters(from)
+    }
+    fn into_value(self) -> Value<'a, ()> {
+        Value::Ref(&self.0)
+    }
+}
+impl<'a> Setters<'a, ()> for NothingSetters<'a> {
+    fn from_mut(from: &'a mut ()) -> Self {
+        NothingSetters(from)
+    }
+}
+
 impl ConstructItem for () {
     type Params = ();
+    type Getters<'a> = NothingGetters<'a>;
+    type Setters<'a> = NothingSetters<'a>;
 
     fn construct_item(_: Self::Params) -> Self {
         ()
@@ -62,6 +84,7 @@ impl Construct for () {
     type Base = ();
     type Fields = ();
     type Design = ();
+    type Props = ();
     type NestedSequence = ();
     type MixedParams = ();
     type ExpandedParams = ();
@@ -309,6 +332,57 @@ pub trait AsParams {
     type Defined;
     type Undefined;
     fn as_params() -> Self::Undefined;
+}
+
+
+// Props
+pub trait Getters<'a, P: ConstructItem>: Sized {
+    fn from_ref(from: &'a P) -> Self;
+    fn into_value(self) -> Value<'a, P>;
+}
+pub trait Setters<'a, P: ConstructItem>: Sized {
+    fn from_mut(from: &'a mut P) -> Self;
+}
+
+pub enum Value<'a, T> {
+    Val(T),
+    Ref(&'a T),
+}
+
+impl<'a, T> Value<'a, T> {
+    pub fn as_ref(&'a self) -> &'a T {
+        match self {
+            Value::Val(ref v) => v,
+            Value::Ref(r) => *r
+        }
+    }
+
+    pub fn into_value(self) -> Self {
+        self
+    }
+}
+
+pub struct Reader<H, T>(fn(&H) -> Value<T>);
+pub struct Writer<H, T>(fn(&mut H, T));
+
+pub struct Prop<H, T> {
+    reader: Reader<H, T>,
+    writer: Writer<H, T>,
+}
+
+impl<H, T> Prop<H, T> {
+    pub fn new(reader: fn(&H) -> Value<T>, writer: fn(&mut H, T)) -> Self {
+        Self {
+            reader: Reader(reader),
+            writer: Writer(writer)
+        }
+    }
+    pub fn read<'a>(&self, host: &'a H) -> Value<'a, T> {
+        (self.reader.0)(host)
+    }
+    pub fn write(&self, host: &mut H, value: T) {
+        (self.writer.0)(host, value);
+    }
 }
 
 use constructivism_macro::implement_constructivism_core; /* @constructivist-no-expose */

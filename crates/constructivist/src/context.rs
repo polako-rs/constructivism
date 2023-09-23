@@ -21,6 +21,10 @@ impl Context {
         value
     }
 
+    pub fn constructivism(&self) -> TokenStream {
+        self.path("constructivism")
+    }
+
     pub fn path(&self, name: &'static str) -> TokenStream {
         if let Some(cached) = self.cache.borrow().get(name).cloned() {
             return cached;
