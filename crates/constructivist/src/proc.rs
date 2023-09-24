@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use syn::{braced, parenthesized, spanned::Spanned, parse::Parse, Expr, Token, Type};
 
-use quote::{quote, format_ident, quote_spanned};
+use quote::{quote, format_ident};
 
 use crate::{context::Context, throw};
 
@@ -15,14 +15,13 @@ impl Parse for Param {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut value = None;
         // this is kinda autocomplete
-        if input.peek(Token![.]) {
-            let dot = input.parse::<Token![.]>()?;
-            if input.is_empty() || input.peek(Token![,]) {
-                let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span=dot.span());
-                let value = syn::parse2(quote! { true })?;
-                return Ok(Param { ident, value });
-            }
+        let dot = input.parse::<Token![.]>()?;
+        if input.is_empty() || input.peek(Token![,]) {
+            let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span=dot.span());
+            let value = syn::parse2(quote! { true })?;
+            return Ok(Param { ident, value });
         }
+
         let ident: Ident = input.parse()?;
         if value.is_none() && input.peek(Token![:]) {
             input.parse::<Token![:]>()?;
