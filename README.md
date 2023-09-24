@@ -41,33 +41,31 @@ use constructivism::*;
 #[derive(Construct)]
 #[construct(Node -> Nothing)]
 pub struct Node {
-    #[default(true)]        // You can provide custom default values.
-    visible: bool,
+    #[default(false)]       // You can provide custom default values.
+    hidden: bool,
     position: (f32, f32),   // Or Default::default() will be used.
 }
 ```
 
-<a name="1-2">1.2</a> **`construct!`**: You can use the `construct!` macro to create instances of Constructs:
+<a name="1-2">1.2</a> **`construct!`**: You can use the `construct!` macro to create instances of Constructs. Please ***note*** the dots at the beginning of the each param, they are required and you will find this syntax quite useful.
 
 ```rust
 fn create_node() {
     let node = construct!(Node {
-        position: (10., 10.),
-        visible: true
+        .position: (10., 10.),
+        .hidden: true
     });
     assert_eq!(node.position.0, 10.);
-    assert_eq!(node.visible, true);
+    assert_eq!(node.hidden, true);
 }
 ```
 
-<a name="1-3">1.3</a> **Skipping Fields**: You can skip the declaration of non-required fields. You can also use bool-aliases:
-- `field` is an alias for `field: true`
-- `!field` is and alias for `field: false`
+<a name="1-3">1.3</a> **Skipping Fields**: You can skip the declaration of non-required fields. You can also use true-aliases: single `field` is an alias for `field: true`.
 
 ```rust
-fn create_node() {
+fn create_another_node() {
     let node = construct!(Node {
-        !visible
+        .hidden
     });
     assert_eq!(node.position.0, 0.);
 }
@@ -75,10 +73,15 @@ fn create_node() {
 
 <a name="1-4">1.4</a> **Required Fields**: Non-default fields must be marked with `#[required]` to avoid compilation errors.
 
+
+
 ```rust
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct Entity;
+
 #[derive(Construct)]
 #[construct(Reference -> Nothing)]
-struct Reference {
+pub struct Reference {
     #[required]
     target: Entity,
     count: usize,
@@ -90,9 +93,9 @@ struct Reference {
 ```rust
 fn create_reference() {
     let reference = construct!(Reference {
-        target: Entity(23)
+        .target: Entity
     });
-    assert_eq!(reference.target.0, 23);
+    assert_eq!(reference.target, Entity);
     assert_eq!(reference.count, 0);
 }
 ```
@@ -113,13 +116,13 @@ pub struct Rect {
 ```rust
 fn create_sequence() {
     let (rect, node, /* nothing */) = construct!(Rect {
-        position: (10., 10.),
-        size: (10., 10.),
-        // You can skip fields, no `visible` here, for example
+        .position: (10., 10.),
+        .size: (10., 10.),
+        // You can skip fields, no `hidden` here, for example
     });
     assert_eq!(rect.size.0, 10.);
     assert_eq!(node.position.1, 10.);
-    assert_eq!(node.visible, true);
+    assert_eq!(node.hidden, false);
 }
 ```
 
@@ -141,7 +144,7 @@ impl RectDesign {
 
 ```rust
 fn use_design() {
-    let rect_entity = Entity(20);
+    let rect_entity = Entity;
     design!(Rect).expand_to(rect_entity, (10., 10.));
     design!(Rect).move_to(rect_entity, (10., 10.)); // move_to implemented for NodeDesign
 }
@@ -168,8 +171,8 @@ pub struct Button {
 
 ```rust
 fn create_button() {
-    let (button, input, rect) = construct!(Button {
-        disabled: true
+    let (button, input, rect, node) = construct!(Button {
+        .disabled: true
     });
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
@@ -187,7 +190,7 @@ impl<T> InputDesign<T> {
 }
 
 fn focus_button() {
-    let btn = Entity(42);
+    let btn = Entity;
     design!(Button).focus(btn);
 }
 ```
@@ -224,7 +227,7 @@ derive_construct! {
 
 ```rust
 fn create_progress_bar() {
-    let (range, _, _) = construct!(ProgressBar { val: 100. });
+    let (range, _, _) = construct!(ProgressBar { .val: 100. });
     assert_eq!(range.min, 0.);
     assert_eq!(range.max, 1.);
     assert_eq!(range.val, 1.);
@@ -254,8 +257,8 @@ derive_segment!{
 pub struct Slider;
 
 fn create_slider() {
-    let (_slider, range, _, _) = construct!(Slider {
-        val: 10.
+    let (slider, range, _, _) = construct!(Slider {
+        .val: 10.
     });
     assert_eq!(range.min, 0.0);
     assert_eq!(range.max, 1.0);

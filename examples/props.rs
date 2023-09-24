@@ -66,4 +66,5 @@ fn _t() {
     let _background_r = prop!(Label.background.a);
     let _text_color = prop!(Label.text_color);
     let _background = prop!(Label.background);
+    // let prop = prop!(Label.text_color.r);
 }
