@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use syn::{braced, parenthesized, spanned::Spanned, parse::Parse, Expr, Token, Type};
 
-use quote::{quote, format_ident};
+use quote::{quote, format_ident, quote_spanned};
 
 use crate::{context::Context, throw};
 
@@ -14,20 +14,28 @@ pub struct Param {
 impl Parse for Param {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut value = None;
-        if input.peek(Token![!]) {
-            input.parse::<Token![!]>()?;
-            value = Some(syn::parse2(quote! { false })?);
+        // this is kinda autocomplete
+        if input.peek(Token![.]) {
+            let dot = input.parse::<Token![.]>()?;
+            if input.is_empty() || input.peek(Token![,]) {
+                let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span=dot.span());
+                let value = syn::parse2(quote! { true })?;
+                return Ok(Param { ident, value });
+            }
         }
-        let ident = input.parse()?;
+        let ident: Ident = input.parse()?;
         if value.is_none() && input.peek(Token![:]) {
             input.parse::<Token![:]>()?;
             value = Some(input.parse()?);
         }
-        if value.is_none() && input.is_empty() {
-            value = Some(syn::parse2(quote! { true })?);
+        if value.is_none() && (input.is_empty() || input.peek(Token![,])) {
+            value = Some(syn::parse_quote_spanned! { ident.span() =>
+                true
+            });
+            // value = Some(syn::parse2(quote_spanned! { ident.span() => true })?);
         }
         if value.is_none() {
-            throw!(input, "Unexpected param input");
+            throw!(input, "Unexpected param input: {}", input.to_string());
         }
         Ok(Param {
             ident,
@@ -166,7 +174,7 @@ impl Parse for Prop {
         while input.peek(Token![.]) {
             let dot = input.parse::<Token![.]>()?;
             if input.is_empty() {
-                path.push(format_ident!("autocomplete", span = dot.span()))
+                path.push(format_ident!("DOT_AUTOCOMPLETE_TOKEN", span = dot.span()))
             } else {
                 path.push(input.parse()?)
             }
