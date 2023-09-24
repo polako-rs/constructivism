@@ -34,10 +34,12 @@ struct Param {
     name: Ident,
     ty: ParamType,
     default: ParamDefault,
+    docs: Vec<Attribute>,
 }
 
 impl Parse for Param {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let docs = Attribute::parse_outer(&input)?.iter().filter(|a| a.path().is_ident("doc")).cloned().collect();
         let name = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty = input.parse()?;
@@ -46,7 +48,17 @@ impl Parse for Param {
             input.parse::<Token![=]>()?;
             default = ParamDefault::Custom(input.parse()?);
         }
-        Ok(Param { name, ty, default })
+        Ok(Param { name, ty, default, docs })
+    }
+}
+
+impl Param {
+    pub fn docs(&self) -> TokenStream {
+        let mut out = quote! { };
+        for doc in self.docs.iter() {
+            out = quote! { #out #doc }
+        }
+        out
     }
 }
 
@@ -70,6 +82,7 @@ impl Params for Vec<Param> {
         let mut params = vec![];
         for field in fields.iter() {
             let ty = ParamType::Single(field.ty.clone());
+            let docs = field.attrs.iter().filter(|a| a.path().is_ident("doc")).cloned().collect();
             let Some(name) = field.ident.clone() else {
                 throw!(field, "#[derive({})] only supports named structs. You can use `{}!` for complex cases.", name, alter);
             };
@@ -84,7 +97,7 @@ impl Params for Vec<Param> {
             } else {
                 ParamDefault::Default
             };
-            params.push(Param { ty, name, default });
+            params.push(Param { ty, name, default, docs });
         }
         Ok(params)
     }
@@ -102,12 +115,14 @@ impl Params for Vec<Param> {
                 throw!(ty, "Union params not supported yet.");
             };
             let ident = &param.name;
+            let docs = param.docs();
             param_values = quote! { #param_values #ident, };
             type_params = quote! { #type_params #mod_ident::#ident, };
             type_params_deconstruct =
                 quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
             fields = quote! { #fields
                 #[allow(unused_variables)]
+                #docs
                 pub #ident: #lib::Param<#ident, #param_ty>,
             };
             fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
