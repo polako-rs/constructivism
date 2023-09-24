@@ -61,6 +61,20 @@ impl<M> Singleton for NothingProps<M> {
     }
 }
 impl<M> Props<M> for NothingProps<M> { }
+impl NothingProps<Get> {
+    pub fn to_owned(&self) { }
+}
+impl NothingProps<Set> {
+    pub fn to_owned(&self) { }
+}
+impl NothingProps<Lookup> {
+    pub fn getters(&self) -> &'static NothingProps<Get>{
+        &NothingProps(PhantomData)
+    }
+    pub fn setters(&self) -> &'static NothingProps<Set>{
+        &NothingProps(PhantomData)
+    }
+}
 pub struct NothingGetters<'a>(&'a ());
 pub struct NothingSetters<'a>(&'a mut ());
 impl<'a> Getters<'a, ()> for NothingGetters<'a> {

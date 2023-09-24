@@ -12,7 +12,17 @@ pub struct Color {
     r: f32,
     g: f32,
     b: f32,
+    #[prop(a, set_a)]
     a: f32,
+}
+
+impl Color {
+    pub fn a(&self) -> f32 {
+        self.a
+    }
+    pub fn set_a(&mut self, a: f32) {
+        self.a = a
+    }
 }
 
 #[derive(Construct)]
@@ -42,43 +52,11 @@ impl Label {
 // }
 
 fn _t() {
-
-    // let text_color_r = Pr {
-    //     get: |c| <<Label as Construct>::Props as Singleton>::instance()
-    //         .text_color_getters(c)
-    //         .text_color()
-    //         .r(),
-    //     set: |c, val| <<Label as Construct>::Props as Singleton>::instance()
-    //         .text_color_setters(c)
-    //         .text_color()
-    //         .set_r(val)
-    // };
-    // let background_r = Pr {
-    //     get: |c| <<Label as Construct>::Props as Singleton>::instance()
-    //         .background_getters(c)
-    //         .background()
-    //         .r(),
-    //     set: |c, val| <<Label as Construct>::Props as Singleton>::instance()
-    //         .background_setters(c)
-    //         .background()
-    //         .set_r(val)
-    // };
+    let _p = <<Label as Construct>::Props<Lookup> as Singleton>::instance();
+    
+    // let _x = prop!(Label.background.);
     let _text_color_r = prop!(Label.background.r);
     let _background_r = prop!(Label.background.a);
     let _text_color = prop!(Label.text_color);
     let _background = prop!(Label.background);
-    // let 
-    // let c = construct
-    // let l = Label {
-    //     text_color: Color { r: 1. }
-    // };
-    // let v = get!(l.text_color.r);
-    // let g = LabelGetters(&l);
-    // let v = g.text_color().r().unwrap();
-
-    // let p = Prop {
-    //     get: |c: &Label| { c.getters().text_color().r().unwrap() },
-    // //     get: |c: &Color| { c.r_value() },
-    //     set: |c: &mut Label, value| { }
-    // };
 }

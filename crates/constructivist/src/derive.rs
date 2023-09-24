@@ -327,6 +327,7 @@ impl DeriveSegment {
                 pub fn getters(&self) -> &'static Props<#lib::Get, T> {
                     <Props<#lib::Get, T> as #lib::Singleton>::instance()
                 }
+                #[doc(hidden)]
                 pub fn setters(&self) -> &'static Props<#lib::Set, T> {
                     <Props<#lib::Set, T> as #lib::Singleton>::instance()
                 }
@@ -334,6 +335,7 @@ impl DeriveSegment {
             impl<T: #lib::Props<#lib::Get>> Props<#lib::Get, T> {
                 #props_getters
             }
+            #[doc(hidden)]
             impl<T: #lib::Props<#lib::Set>> Props<#lib::Set, T> {
                 #props_setters
             }
@@ -396,10 +398,22 @@ impl DeriveSegment {
     }
 }
 
-pub enum Prop {
-    Construct { ident: Ident, ty: Type },
-    Value { ident: Ident, ty: Type },
-    GetSet { ident: Ident, get: Ident, set: Ident, ty: Type, },
+pub struct Prop {
+    ident: Ident,
+    ty: Type,
+    kind: PropKind,
+}
+
+pub enum PropKind {
+    Value,
+    Construct,
+    GetSet(Ident, Ident),
+}
+
+pub struct Pro {
+    pub ident: Ident,
+    pub ty: Type,
+    pub spec: PropSpec,
 }
 impl Prop {
     pub fn from_field(field: &Field) -> syn::Result<Self> {
@@ -409,22 +423,15 @@ impl Prop {
         };
         let mut attrs = field.attrs.iter().filter(|a| a.path().is_ident("prop"));
         if let Some(attr) = attrs.next() {
-            attr.parse_args_with(|input: ParseStream| {
-                let spec = input.parse::<Ident>()?;
-                if input.peek(Token![,]) {
-                    let get = spec;
-                    input.parse::<Token![,]>()?;
-                    let set = input.parse()?;
-                    return Ok(Prop::GetSet { ty, ident, get, set });
-                }
-                if &spec.to_string() == "construct" {
-                    Ok(Prop::Construct { ident, ty })
-                } else {
-                    throw!(spec, "Expected construct, skip or get, set");
-                }
-            })
+            let spec = attr.parse_args_with(PropSpec::parse)?;
+            if spec.construct() {
+                Ok(Prop { ident, ty, kind: PropKind::Construct })
+            } else {
+                let (get, set) = spec.getset()?;
+                Ok(Prop { ident, ty, kind: PropKind::GetSet(get, set) })
+            }
         } else if let Some(ident) = field.ident.clone() {
-            Ok(Prop::Value { ty, ident })
+            Ok(Prop { ty, ident, kind: PropKind::Value })
         } else {
             throw!(field, "#[param(get, set)] is required for unnamed struct fields");
         }
@@ -432,20 +439,25 @@ impl Prop {
 
     pub fn build_getter(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let lib = ctx.constructivism();
-        Ok(match self {
-            Prop::Value { ident, ty } => quote! {
+        let ident = &self.ident;
+        let ty = &self.ty;
+        Ok(match &self.kind {
+            PropKind::Value => quote! {
+                #[doc = "I'm Value::Ref"]
                 pub fn #ident(self) -> #lib::Value<'a, #ty> {
                     #lib::Value::Ref(&self.0.#ident)
                 }
             },
-            Prop::Construct { ident, ty } => quote! {
+            PropKind::Construct => quote! {
+                #[doc = "I'm ConstructItem::Getters::from_ref"]
                 pub fn #ident(self) -> <#ty as #lib::ConstructItem>::Getters<'a> {
                     <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
                         &self.0.#ident
                     )
                 }
             },
-            Prop::GetSet { ident, get, ty, .. } => quote! {
+            PropKind::GetSet(get, _set) => quote! {
+                #[doc = "I'm Value::Val"]
                 pub fn #ident(self) -> #lib::Value<'a, #ty> {
                     #lib::Value::Val(self.0.#get())
                 }
@@ -454,34 +466,41 @@ impl Prop {
     }
     pub fn build_setter(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let lib = ctx.path("constructivism");
-        Ok(match self {
-            Prop::Value { ident, ty } => {
+        let ty = &self.ty;
+        let ident = &self.ident;
+        Ok(match &self.kind {
+            PropKind::Value => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #setter(self, value: #ty) {
                         self.0.#ident = value;
                     }
                 }
             },
-            Prop::Construct { ident, ty } => {
+            PropKind::Construct => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #ident(self) -> <#ty as #lib::ConstructItem>::Setters<'a> {
                         <<#ty as #lib::ConstructItem>::Setters<'a> as #lib::Setters<'a, #ty>>::from_mut(
                             &mut self.0.#ident
                         )
                     }
+                    #[doc(hidden)]
                     pub fn #setter(self, value: #ty) {
                         self.0.#ident = value;
                     }
                 }
             },
-            Prop::GetSet { ident, set, ty, .. } => {
+            PropKind::GetSet(_get, set) => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #ident(self, value: #ty) {
                         self.0.#set(value);
                     }
+                    #[doc(hidden)]
                     pub fn #setter(self, value: #ty) {
                         self.0.#set(value);
                     }
@@ -492,23 +511,33 @@ impl Prop {
 
     pub fn build_lookup_getter(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
         let lib = ctx.constructivism();
-        Ok(match self {
-            Prop::Value { ident, ty } => quote! {
-                pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
-                    #lib::Value::Ref(&this.#ident)
+        let ident = &self.ident;
+        let ty = &self.ty;
+        Ok(match &self.kind {
+            PropKind::Value => {
+                quote! {
+                    #[doc = "I'm Value::Ref"]
+                    pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
+                        #lib::Value::Ref(&this.#ident)
+                    }
                 }
             },
-            Prop::Construct { ident, ty } => quote! {
-                pub fn #ident<'a>(&self, this: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
-                    <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
-                        &this.#ident
-                    )
+            PropKind::Construct => {
+                quote! {
+                    #[doc = "I'm ConstructItem::Getters::from_ref"]
+                    pub fn #ident<'a>(&self, this: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
+                        <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
+                            &this.#ident
+                        )
+                    }
                 }
-
             },
-            Prop::GetSet { ident, get, ty, .. } => quote! {
-                pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
-                    #lib::Value::Val(this.#get())
+            PropKind::GetSet(get, _set) => {
+                quote! {
+                    #[doc = "I'm Value::Val"]
+                    pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
+                        #lib::Value::Val(this.#get())
+                    }
                 }
             },
         })
@@ -516,43 +545,76 @@ impl Prop {
 
     pub fn build_lookup_setter(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
         let lib = ctx.constructivism();
-        Ok(match self {
-            Prop::Value { ident, ty } => {
+        let ident = &self.ident;
+        let ty = &self.ty;
+        Ok(match &self.kind {
+            PropKind::Value => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #ident(&self, this: &mut #this, value: #ty) {
                         this.#ident = value;
                     }
+                    #[doc(hidden)]
                     pub fn #setter(&self, this: &mut #this, value: #ty) {
                         this.#ident = value;
                     }
                 }
             },
-            Prop::Construct { ident, ty } => {
+            PropKind::Construct => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #ident<'a>(&self, this: &'a mut #this) -> <#ty as #lib::ConstructItem>::Setters<'a> {
                         <<#ty as #lib::ConstructItem>::Setters<'a> as #lib::Setters<'a, #ty>>::from_mut(
                             &mut this.#ident
                         )
                     }
+                    #[doc(hidden)]
                     pub fn #setter(&self, this: &mut #this, value: #ty) {
                         this.#ident = value;
                     }
                 }
             },
-            Prop::GetSet { ident, set, ty, .. } => {
+            PropKind::GetSet(_get, set) => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
+                    #[doc(hidden)]
                     pub fn #ident(self, this: &mut #this, value: #ty) {
                         this.#set(value);
                     }
+                    #[doc(hidden)]
                     pub fn #setter(self, this: &mut #this, value: #ty) {
                         this.#set(value);
                     }
                 }
             },
         })
+    }
+}
+
+pub struct PropSpec(pub Vec<Ident>);
+
+impl Parse for PropSpec {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(PropSpec(
+            input.parse_terminated(Ident::parse, Token![,])?.into_iter().collect()
+        ))
+    }
+}
+impl PropSpec {
+    pub fn skip(&self) -> bool {
+        self.0.len() == 1 && &self.0[0].to_string() == "skip"
+    }
+    pub fn construct(&self) -> bool {
+        self.0.len() == 1 && &self.0[0].to_string() == "construct"    
+    }
+    pub fn getset(&self) -> syn::Result<(Ident, Ident)> {
+        if self.0.len() == 2 {
+            Ok((self.0[0].clone(), self.0[1].clone()))
+        } else {
+            throw!(self.0[0], "Expected #[prop(getter, setter)]");
+        }
     }
 }
 
@@ -564,14 +626,11 @@ impl Props {
         for field in fields.iter() {
         
             if let Some(attr) = field.attrs.iter().find(|a| a.path().is_ident("prop")) {
-                let skip = attr.parse_args_with(|input: ParseStream| {
-                    if let Ok(ident) = input.parse::<Ident>() {
-                        if &ident.to_string() == "skip" && input.is_empty() {
-                            return Ok(true)
-                        }
-                    }
-                    Ok(false)
-                })?;
+                // attr.meta.require_list()?.
+                // attr.meta.to_token_stream()
+                // Punctuated::<Ident, Token![,]>::parse_terminated(attr.meta.to_token_stream())?;
+                // attr.parse_args::<Punctuated<Ident, Token![,]>>()?;
+                let skip = attr.parse_args_with(PropSpec::parse)?.skip();
                 if skip {
                     continue;
                 }
@@ -761,6 +820,7 @@ impl DeriveConstruct {
                     pub fn getters(&self) -> &'static Props<#lib::Get> {
                         <Props<#lib::Get> as #lib::Singleton>::instance()
                     }
+                    #[doc(hidden)]
                     pub fn setters(&self) -> &'static Props<#lib::Set> {
                         <Props<#lib::Set> as #lib::Singleton>::instance()
                     }
@@ -768,6 +828,7 @@ impl DeriveConstruct {
                 impl Props<#lib::Get> {
                     #props_getters
                 }
+                #[doc(hidden)]
                 impl Props<#lib::Set> {
                     #props_setters
                 }

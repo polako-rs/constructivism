@@ -164,8 +164,12 @@ impl Parse for Prop {
         let root = input.parse()?;
         let mut path = vec![];
         while input.peek(Token![.]) {
-            input.parse::<Token![.]>()?;
-            path.push(input.parse()?)
+            let dot = input.parse::<Token![.]>()?;
+            if input.is_empty() {
+                path.push(format_ident!("autocomplete", span = dot.span()))
+            } else {
+                path.push(input.parse()?)
+            }
         }
         Ok(Prop { root, path })
     }
@@ -183,6 +187,18 @@ impl Prop {
         let last = self.path.len() - 1;
 
         for (idx, part) in self.path.iter().enumerate() {
+            let part = if idx != 0 {
+                part.clone()
+            } else {
+                let p = part.to_string();
+                if &p == "p" {
+                    part.clone()
+                } else if p.starts_with("p") {
+                    format_ident!("{}", p.strip_prefix("p").unwrap(), span = part.span() )
+                } else {
+                    part.clone()
+                }
+            };
             let setter = format_ident!("set_{}", part);
             if idx == 0 {
                 get = quote! { #get.#part(host) };
