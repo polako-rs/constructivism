@@ -175,29 +175,32 @@ impl Prop {
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let lib = ctx.constructivism();
         let root = &self.root;
-        let mut get = quote! { <<#root as #lib::Construct>::Props as #lib::Singleton>::instance() };
-        let mut set = get.clone();
+        let mut get = quote! { <<#root as #lib::Construct>::Props<#lib::Lookup> as #lib::Singleton>::instance().getters() };
+        let mut set = quote! { <<#root as #lib::Construct>::Props<#lib::Lookup> as #lib::Singleton>::instance().setters() };
         if self.path.len() == 0 {
             throw!(self.root, "Missing property path.");
         }
         let last = self.path.len() - 1;
 
         for (idx, part) in self.path.iter().enumerate() {
-            let getters = format_ident!("{}_getters", part);
-            let setters = format_ident!("{}_setters", part);
             let setter = format_ident!("set_{}", part);
             if idx == 0 {
-                get = quote! { #get.#getters(host) };
-                set = quote! { #set.#setters(host) };
-            }
-            get = quote! { #get.#part() };
-            if idx < last {
-                set = quote! { #set.#part() };
+                get = quote! { #get.#part(host) };
             } else {
-                get = quote! { #get.into_value() };
-                set = quote! { #set.#setter(value)}
+                get = quote! { #get.#part() };
+            }
+            
+            if idx == 0 && idx == last {
+                set = quote! { #set.#setter(host, value) };
+            } else if idx == last {
+                set = quote! { #set.#setter(value)};
+            } else if idx == 0 {
+                set = quote! { #set.#part(host) };
+            } else {
+                set = quote! { #set.#part() };
             }
         }
+        get = quote! { #get.into_value() };
         Ok(quote! {
             #lib::Prop::new(
                 |host| #get,

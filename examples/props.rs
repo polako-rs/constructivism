@@ -1,19 +1,12 @@
-use constructivism::{*, Prop};
-
-use std::marker::PhantomData;
+use constructivism::*;
 
 
 fn main() {
 
 }
 
-macro_rules! get {
-    ($root:ident $(.$item:ident)+) => {
-        $root.getters()$(.$item())+.unwrap()
-    };
-}
-
-#[derive(Construct, Default)]
+#[derive(Default)]
+#[derive(Construct)]
 #[construct(Color -> Nothing)]
 pub struct Color {
     r: f32,
@@ -40,15 +33,6 @@ pub struct Label {
 impl Label {
     
 }
-
-
-pub struct Pr<Host, Target> {
-    get: fn(&Host) -> Value<Target>,
-    set: fn(&mut Host, Target),
-}
-
-struct Model<T: Construct>(PhantomData<T>);
-
 // impl<T: Construct> Model<T> {
 //     fn props(&self) {
 //         let props = <<T as Construct>::Props as Singleton>::instance();
@@ -57,7 +41,7 @@ struct Model<T: Construct>(PhantomData<T>);
 //     }
 // }
 
-fn t() {
+fn _t() {
 
     // let text_color_r = Pr {
     //     get: |c| <<Label as Construct>::Props as Singleton>::instance()
@@ -79,7 +63,7 @@ fn t() {
     //         .background()
     //         .set_r(val)
     // };
-    let _text_color_r = prop!(Label.text_color.r);
+    let _text_color_r = prop!(Label.background.r);
     let _background_r = prop!(Label.background.a);
     let _text_color = prop!(Label.text_color);
     let _background = prop!(Label.background);

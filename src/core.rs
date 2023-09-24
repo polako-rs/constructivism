@@ -28,7 +28,7 @@ pub trait Construct: ConstructItem {
 
     type Fields: Singleton;
     type Design: Singleton;
-    type Props: Singleton;
+    type Props<M>: Props<M>;
 
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
@@ -44,7 +44,7 @@ pub trait Construct: ConstructItem {
 pub trait Segment: ConstructItem {
     type Fields<T: Singleton + 'static>: Singleton;
     type Design<T: Singleton + 'static>: Singleton;
-    type Props<T: Singleton + 'static>: Singleton;
+    type Props<M, T: Props<M> + 'static>: Singleton;
 }
 
 #[macro_export]
@@ -54,6 +54,13 @@ macro_rules! design {
     };
 }
 
+pub struct NothingProps<M>(PhantomData<M>);
+impl<M> Singleton for NothingProps<M> {
+    fn instance() -> &'static Self {
+        &NothingProps(PhantomData)
+    }
+}
+impl<M> Props<M> for NothingProps<M> { }
 pub struct NothingGetters<'a>(&'a ());
 pub struct NothingSetters<'a>(&'a mut ());
 impl<'a> Getters<'a, ()> for NothingGetters<'a> {
@@ -70,6 +77,7 @@ impl<'a> Setters<'a, ()> for NothingSetters<'a> {
     }
 }
 
+
 impl ConstructItem for () {
     type Params = ();
     type Getters<'a> = NothingGetters<'a>;
@@ -84,7 +92,7 @@ impl Construct for () {
     type Base = ();
     type Fields = ();
     type Design = ();
-    type Props = ();
+    type Props<M> = NothingProps<M>;
     type NestedSequence = ();
     type MixedParams = ();
     type ExpandedParams = ();
@@ -336,6 +344,13 @@ pub trait AsParams {
 
 
 // Props
+pub struct Lookup;
+pub struct Get;
+pub struct Set;
+
+pub trait Props<M>: Singleton {
+
+}
 pub trait Getters<'a, P: ConstructItem>: Sized {
     fn from_ref(from: &'a P) -> Self;
     fn into_value(self) -> Value<'a, P>;

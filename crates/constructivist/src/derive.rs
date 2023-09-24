@@ -264,7 +264,8 @@ impl DeriveSegment {
             type_params,
             type_params_deconstruct,
         } = self.params.build(ctx, &ty, &mod_ident)?;
-        let props = self.props.build(ctx, ty)?;
+        let props_getters = self.props.build_lookup_getters(ctx, &ty)?;
+        let props_setters = self.props.build_lookup_setters(ctx, &ty)?;
         let getters = self.props.build_getters(ctx)?;
         let setters = self.props.build_setters(ctx)?;
         let construct = if let Some(expr) = &self.body {
@@ -299,8 +300,8 @@ impl DeriveSegment {
             }
 
             // Props
-            pub struct Props<T: #lib::Singleton>(
-                ::std::marker::PhantomData<T>,
+            pub struct Props<M, T: #lib::Props<M>>(
+                ::std::marker::PhantomData<(M, T)>,
             );
             pub struct Getters<'a>(&'a #ty);
             pub struct Setters<'a>(&'a mut #ty);
@@ -317,8 +318,24 @@ impl DeriveSegment {
                     Self(from)
                 }
             }
-            impl<T: #lib::Singleton> Props<T> {
-                #props
+            impl<T> Props<#lib::Lookup, T> 
+            where T:
+                #lib::Props<#lib::Lookup> +
+                #lib::Props<#lib::Get> +
+                #lib::Props<#lib::Set>
+            {
+                pub fn getters(&self) -> &'static Props<#lib::Get, T> {
+                    <Props<#lib::Get, T> as #lib::Singleton>::instance()
+                }
+                pub fn setters(&self) -> &'static Props<#lib::Set, T> {
+                    <Props<#lib::Set, T> as #lib::Singleton>::instance()
+                }
+            }
+            impl<T: #lib::Props<#lib::Get>> Props<#lib::Get, T> {
+                #props_getters
+            }
+            impl<T: #lib::Props<#lib::Set>> Props<#lib::Set, T> {
+                #props_setters
             }
             impl<'a> Getters<'a> {
                 #getters
@@ -326,17 +343,18 @@ impl DeriveSegment {
             impl<'a> Setters<'a> {
                 #setters
             }
-            impl<T: #lib::Singleton + 'static> std::ops::Deref for Props<T> {
+            impl<M: 'static, T: #lib::Props<M> + 'static> std::ops::Deref for Props<M, T> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
-                    T::instance()
+                    <T as #lib::Singleton>::instance()
                 }
             }
-            impl<T: #lib::Singleton> #lib::Singleton for Props<T> {
+            impl<M, T: #lib::Props<M>> #lib::Singleton for Props<M, T> {
                 fn instance() -> &'static Self {
                     &Props(::std::marker::PhantomData)
                 }
             }
+            impl<M, T: #lib::Props<M>> #lib::Props<M> for Props<M, T> { }
 
 
         };
@@ -356,7 +374,7 @@ impl DeriveSegment {
                 }
             }
             impl #lib::Segment for #type_ident {
-                type Props<T: #lib::Singleton + 'static> = #mod_ident::Props<T>;
+                type Props<M, T: #lib::Props<M> + 'static> = #mod_ident::Props<M, T>;
                 type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
                 type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
@@ -458,9 +476,80 @@ impl Prop {
                     }
                 }
             },
-            Prop::GetSet { ident, set, ty, .. } => quote! {
-                pub fn #ident(self, value: #ty) {
-                    self.0.#set(value);
+            Prop::GetSet { ident, set, ty, .. } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #ident(self, value: #ty) {
+                        self.0.#set(value);
+                    }
+                    pub fn #setter(self, value: #ty) {
+                        self.0.#set(value);
+                    }
+                }
+            },
+        })
+    }
+
+    pub fn build_lookup_getter(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+        let lib = ctx.constructivism();
+        Ok(match self {
+            Prop::Value { ident, ty } => quote! {
+                pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
+                    #lib::Value::Ref(&this.#ident)
+                }
+            },
+            Prop::Construct { ident, ty } => quote! {
+                pub fn #ident<'a>(&self, this: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
+                    <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
+                        &this.#ident
+                    )
+                }
+
+            },
+            Prop::GetSet { ident, get, ty, .. } => quote! {
+                pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
+                    #lib::Value::Val(this.#get())
+                }
+            },
+        })
+    }
+
+    pub fn build_lookup_setter(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+        let lib = ctx.constructivism();
+        Ok(match self {
+            Prop::Value { ident, ty } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #ident(&self, this: &mut #this, value: #ty) {
+                        this.#ident = value;
+                    }
+                    pub fn #setter(&self, this: &mut #this, value: #ty) {
+                        this.#ident = value;
+                    }
+                }
+            },
+            Prop::Construct { ident, ty } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #ident<'a>(&self, this: &'a mut #this) -> <#ty as #lib::ConstructItem>::Setters<'a> {
+                        <<#ty as #lib::ConstructItem>::Setters<'a> as #lib::Setters<'a, #ty>>::from_mut(
+                            &mut this.#ident
+                        )
+                    }
+                    pub fn #setter(&self, this: &mut #this, value: #ty) {
+                        this.#ident = value;
+                    }
+                }
+            },
+            Prop::GetSet { ident, set, ty, .. } => {
+                let setter = format_ident!("set_{}", ident);
+                quote! {
+                    pub fn #ident(self, this: &mut #this, value: #ty) {
+                        this.#set(value);
+                    }
+                    pub fn #setter(self, this: &mut #this, value: #ty) {
+                        this.#set(value);
+                    }
                 }
             },
         })
@@ -508,26 +597,20 @@ impl Props {
         Ok(out)
     }
 
-    pub fn build(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+    pub fn build_lookup_getters(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
         let mut out = quote! { };
-        let lib = ctx.constructivism();
         for prop in self.iter() {
-            match prop {
-                Prop::Value { ident, .. } |
-                Prop::Construct { ident, .. } |
-                Prop::GetSet { ident, .. }  => {
-                    let ident_getters = format_ident!("{}_getters", ident);
-                    let ident_setters = format_ident!("{}_setters", ident);
-                    out = quote! { #out 
-                        pub fn #ident_getters<'a>(&self, from: &'a #this) -> Getters<'a> {
-                            <Getters as #lib::Getters<#this>>::from_ref(from)
-                        }
-                        pub fn #ident_setters<'a>(&self, from: &'a mut #this) -> Setters<'a> {
-                            <Setters as #lib::Setters<#this>>::from_mut(from)
-                        }
-                    }
-                }
-            }
+            let getter = prop.build_lookup_getter(ctx, this)?;
+            out = quote! { #out #getter }
+        }
+        Ok(out)
+    }
+
+    pub fn build_lookup_setters(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+        let mut out = quote! { };
+        for prop in self.iter() {
+            let setter = prop.build_lookup_setter(ctx, this)?;
+            out = quote! { #out #setter }
         }
         Ok(out)
     }
@@ -618,7 +701,8 @@ impl DeriveConstruct {
             type_params,
             type_params_deconstruct,
         } = self.params.build(ctx, &ty, &mod_ident)?;
-        let props = self.props.build(ctx, ty)?;
+        let props_getters = self.props.build_lookup_getters(ctx, &ty)?;
+        let props_setters = self.props.build_lookup_setters(ctx, &ty)?;
         let getters = self.props.build_getters(ctx)?;
         let setters = self.props.build_setters(ctx)?;
         let decls = {
@@ -629,12 +713,12 @@ impl DeriveConstruct {
                 quote! { () }
             };
             let mut deref_fields = quote! { <#base as #lib::Construct>::Fields };
-            let mut deref_props = quote! { <#base as #lib::Construct>::Props };
+            let mut deref_props = quote! { <#base as #lib::Construct>::Props<M> };
             deref_design = quote! { <#base as #lib::Construct>::Design };
             for segment in self.sequence.segments.iter() {
                 deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
                 deref_design = quote! { <#segment as #lib::Segment>::Design<#deref_design> };
-                deref_props = quote! { <#segment as #lib::Segment>::Props<#deref_props> };
+                deref_props = quote! { <#segment as #lib::Segment>::Props<M, #deref_props> };
             }
 
             quote! {
@@ -657,7 +741,7 @@ impl DeriveConstruct {
                 }
                 
                 // Props
-                pub struct Props;
+                pub struct Props<M>(::std::marker::PhantomData<M>);
                 pub struct Getters<'a>(&'a #ty);
                 pub struct Setters<'a>(&'a mut #ty);
                 impl<'a> #lib::Getters<'a, #ty> for Getters<'a> {
@@ -673,8 +757,19 @@ impl DeriveConstruct {
                         Self(from)
                     }
                 }
-                impl Props {
-                    #props
+                impl Props<#lib::Lookup> {
+                    pub fn getters(&self) -> &'static Props<#lib::Get> {
+                        <Props<#lib::Get> as #lib::Singleton>::instance()
+                    }
+                    pub fn setters(&self) -> &'static Props<#lib::Set> {
+                        <Props<#lib::Set> as #lib::Singleton>::instance()
+                    }
+                }
+                impl Props<#lib::Get> {
+                    #props_getters
+                }
+                impl Props<#lib::Set> {
+                    #props_setters
                 }
                 impl<'a> Getters<'a> {
                     #getters
@@ -682,17 +777,18 @@ impl DeriveConstruct {
                 impl<'a> Setters<'a> {
                     #setters
                 }
-                impl std::ops::Deref for Props {
+                impl<M: 'static> std::ops::Deref for Props<M> {
                     type Target = #deref_props;
                     fn deref(&self) -> &Self::Target {
                         <#deref_props as #lib::Singleton>::instance()
                     }
                 }
-                impl #lib::Singleton for Props {
+                impl<M> #lib::Singleton for Props<M> {
                     fn instance() -> &'static Self {
-                        &Props
+                        &Props(::std::marker::PhantomData)
                     }
                 }
+                impl<M> #lib::Props<M> for Props<M> { }
             }
         };
         let derive = {
@@ -748,7 +844,7 @@ impl DeriveConstruct {
                     type Sequence = <Self::NestedSequence as #lib::Flattern>::Output;
                     type Base = #base;
                     type Fields = #mod_ident::Fields;
-                    type Props = #mod_ident::Props;
+                    type Props<M> = #mod_ident::Props<M>;
                     type Design = #design;
                     type MixedParams = (#mixed_params);
                     type NestedSequence = (Self, #base_sequence);
