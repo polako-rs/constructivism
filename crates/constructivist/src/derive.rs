@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     bracketed, parenthesized, parse::{Parse, ParseStream}, spanned::Spanned, Data, DeriveInput, Expr, Ident,
-    Token, Type, Field, Fields,
+    Token, Type, Field, Fields, Attribute,
 };
 
 enum ParamType {
@@ -399,9 +399,10 @@ impl DeriveSegment {
 }
 
 pub struct Prop {
-    ident: Ident,
-    ty: Type,
-    kind: PropKind,
+    pub ident: Ident,
+    pub ty: Type,
+    pub kind: PropKind,
+    docs: Vec<Attribute>,
 }
 
 pub enum PropKind {
@@ -410,46 +411,53 @@ pub enum PropKind {
     GetSet(Ident, Ident),
 }
 
-pub struct Pro {
-    pub ident: Ident,
-    pub ty: Type,
-    pub spec: PropSpec,
-}
 impl Prop {
     pub fn from_field(field: &Field) -> syn::Result<Self> {
         let ty = field.ty.clone();
         let Some(ident) = field.ident.clone() else {
             throw!(field, "Anonymous fields not supported.");
         };
+        let docs = field.attrs
+            .iter()
+            .filter(|a| a.path().is_ident("doc"))
+            .cloned()
+            .collect();
         let mut attrs = field.attrs.iter().filter(|a| a.path().is_ident("prop"));
         if let Some(attr) = attrs.next() {
             let spec = attr.parse_args_with(PropSpec::parse)?;
             if spec.construct() {
-                Ok(Prop { ident, ty, kind: PropKind::Construct })
+                Ok(Prop { ident, ty, docs, kind: PropKind::Construct })
             } else {
                 let (get, set) = spec.getset()?;
-                Ok(Prop { ident, ty, kind: PropKind::GetSet(get, set) })
+                Ok(Prop { ident, ty, docs, kind: PropKind::GetSet(get, set) })
             }
         } else if let Some(ident) = field.ident.clone() {
-            Ok(Prop { ty, ident, kind: PropKind::Value })
+            Ok(Prop { ty, ident, docs, kind: PropKind::Value })
         } else {
             throw!(field, "#[param(get, set)] is required for unnamed struct fields");
         }
     }
-
+    pub fn docs(&self) -> TokenStream {
+        let mut out = quote! { };
+        for attr in self.docs.iter() {
+            out = quote! { #out #attr }
+        }
+        out
+    }
     pub fn build_getter(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let lib = ctx.constructivism();
         let ident = &self.ident;
         let ty = &self.ty;
+        let docs = self.docs();
         Ok(match &self.kind {
             PropKind::Value => quote! {
-                #[doc = "I'm Value::Ref"]
+                #docs
                 pub fn #ident(self) -> #lib::Value<'a, #ty> {
                     #lib::Value::Ref(&self.0.#ident)
                 }
             },
             PropKind::Construct => quote! {
-                #[doc = "I'm ConstructItem::Getters::from_ref"]
+                #docs
                 pub fn #ident(self) -> <#ty as #lib::ConstructItem>::Getters<'a> {
                     <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
                         &self.0.#ident
@@ -457,7 +465,7 @@ impl Prop {
                 }
             },
             PropKind::GetSet(get, _set) => quote! {
-                #[doc = "I'm Value::Val"]
+                #docs
                 pub fn #ident(self) -> #lib::Value<'a, #ty> {
                     #lib::Value::Val(self.0.#get())
                 }
@@ -513,10 +521,11 @@ impl Prop {
         let lib = ctx.constructivism();
         let ident = &self.ident;
         let ty = &self.ty;
+        let docs = self.docs();
         Ok(match &self.kind {
             PropKind::Value => {
                 quote! {
-                    #[doc = "I'm Value::Ref"]
+                    #docs
                     pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
                         #lib::Value::Ref(&this.#ident)
                     }
@@ -524,7 +533,7 @@ impl Prop {
             },
             PropKind::Construct => {
                 quote! {
-                    #[doc = "I'm ConstructItem::Getters::from_ref"]
+                    #docs
                     pub fn #ident<'a>(&self, this: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
                         <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
                             &this.#ident
@@ -534,7 +543,7 @@ impl Prop {
             },
             PropKind::GetSet(get, _set) => {
                 quote! {
-                    #[doc = "I'm Value::Val"]
+                    #docs
                     pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
                         #lib::Value::Val(this.#get())
                     }

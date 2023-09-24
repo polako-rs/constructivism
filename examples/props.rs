@@ -9,9 +9,13 @@ fn main() {
 #[derive(Construct)]
 #[construct(Color -> Nothing)]
 pub struct Color {
+    /// Red channel
     r: f32,
+    /// Green channel
     g: f32,
+    /// Blue channel
     b: f32,
+    /// Alpha channel
     #[prop(a, set_a)]
     a: f32,
 }
@@ -28,6 +32,8 @@ impl Color {
 #[derive(Construct)]
 #[construct(Div -> Nothing)]
 pub struct Div {
+
+    /// The background color for the Div, transparent by default.
     #[prop(construct)]
     background: Color
 }
@@ -36,6 +42,7 @@ pub struct Div {
 #[derive(Construct)]
 #[construct(Label -> Div)]
 pub struct Label {
+    /// The text coklor, black by default.
     #[prop(construct)]
     text_color: Color
 }
