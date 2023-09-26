@@ -58,7 +58,7 @@ fn create_node() {
 }
 ```
 
-<a name="1-3">1.3</a> **Skipping Fields**: You can skip the declaration of non-required fields. You can also use true-aliases: single `field` is an alias for `field: true`.
+<a name="1-3">1.3</a> **Skipping Params**: You can skip the declaration of non-required fields. You can also use true-aliases: single `field` is an alias for `field: true`.
 
 ```rust
 fn create_another_node() {
@@ -69,7 +69,7 @@ fn create_another_node() {
 }
 ```
 
-<a name="1-4">1.4</a> **Required Fields**: Non-default fields must be marked with `#[required]` to avoid compilation errors.
+<a name="1-4">1.4</a> **Required Params**: Non-default fields must be marked with `#[required]` to avoid compilation errors.
 
 
 
@@ -86,7 +86,7 @@ pub struct Reference {
 }
 ```
 
-<a name="1-5">1.5</a> **Passing Required Fields**: You must pass all required fields to `construct!(..)` to avoid compilation errors.
+<a name="1-5">1.5</a> **Passing Required Params**: You must pass all required fields to `construct!(..)` to avoid compilation errors.
 
 ```rust
 fn create_reference() {

@@ -89,11 +89,6 @@ impl Parse for ParamKind {
     }
 }
 
-enum ParamDefault {
-    None,
-    Default,
-    Custom(Expr),
-}
 struct Param {
     name: Ident,
     ty: ParamType,
@@ -403,19 +398,19 @@ impl DeriveSegment {
 
             // fields
 
-            pub struct Fields<T: #lib::Singleton> {
+            pub struct Params<T: #lib::Singleton> {
                 #fields
                 __base__: ::std::marker::PhantomData<T>,
             }
-            impl<T: #lib::Singleton> #lib::Singleton for Fields<T> {
+            impl<T: #lib::Singleton> #lib::Singleton for Params<T> {
                 fn instance() -> &'static Self {
-                    &Fields {
+                    &Params {
                         #fields_new
                         __base__: ::std::marker::PhantomData,
                     }
                 }
             }
-            impl<T: #lib::Singleton + 'static> std::ops::Deref for Fields<T> {
+            impl<T: #lib::Singleton + 'static> std::ops::Deref for Params<T> {
                 type Target = T;
                 fn deref(&self) -> &Self::Target {
                     T::instance()
@@ -500,7 +495,7 @@ impl DeriveSegment {
             }
             impl #lib::Segment for #type_ident {
                 type Props<M, T: #lib::Props<M> + 'static> = #mod_ident::Props<M, T>;
-                type Fields<T: #lib::Singleton + 'static> = #mod_ident::Fields<T>;
+                type Params<T: #lib::Singleton + 'static> = #mod_ident::Params<T>;
                 type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
             pub struct #design<T>(
@@ -990,28 +985,28 @@ impl DeriveConstruct {
             } else {
                 quote! { () }
             };
-            let mut deref_fields = quote! { <#base as #lib::Construct>::Fields };
+            let mut deref_fields = quote! { <#base as #lib::Construct>::Params };
             let mut deref_props = quote! { <#base as #lib::Construct>::Props<M> };
             deref_design = quote! { <#base as #lib::Construct>::Design };
             for segment in self.sequence.segments.iter() {
-                deref_fields = quote! { <#segment as #lib::Segment>::Fields<#deref_fields> };
+                deref_fields = quote! { <#segment as #lib::Segment>::Params<#deref_fields> };
                 deref_design = quote! { <#segment as #lib::Segment>::Design<#deref_design> };
                 deref_props = quote! { <#segment as #lib::Segment>::Props<M, #deref_props> };
             }
 
             quote! {
-                // Fields
-                pub struct Fields {
+                // Params
+                pub struct Params {
                     #fields
                 }
-                impl #lib::Singleton for Fields {
+                impl #lib::Singleton for Params {
                     fn instance() -> &'static Self {
-                        &Fields {
+                        &Params {
                             #fields_new
                         }
                     }
                 }
-                impl ::std::ops::Deref for Fields {
+                impl ::std::ops::Deref for Params {
                     type Target = #deref_fields;
                     fn deref(&self) -> &Self::Target {
                         <#deref_fields as #lib::Singleton>::instance()
@@ -1123,7 +1118,7 @@ impl DeriveConstruct {
                 impl #lib::Construct for #type_ident {
                     type Sequence = <Self::NestedSequence as #lib::Flattern>::Output;
                     type Base = #base;
-                    type Fields = #mod_ident::Fields;
+                    type Params = #mod_ident::Params;
                     type Props<M> = #mod_ident::Props<M>;
                     type Design = #design;
                     type MixedParams = (#mixed_params);

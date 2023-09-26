@@ -118,7 +118,7 @@ fn create_elements() {
 
         // last_computed_distance param is skipped, uncomenting
         // the next line will result in compilation error
-        // error: no field `last_computed_distance` on type `&follow_construct::Fields`
+        // error: no field `last_computed_distance` on type `&follow_construct::Params`
         
         // .last_computed_distance: 10.
     });

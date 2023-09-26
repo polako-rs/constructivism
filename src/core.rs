@@ -26,7 +26,7 @@ pub trait Construct: ConstructItem {
     type Base: Construct;
     type Sequence;
 
-    type Fields: Singleton;
+    type Params: Singleton;
     type Design: Singleton;
     type Props<M>: Props<M>;
 
@@ -42,7 +42,7 @@ pub trait Construct: ConstructItem {
 }
 
 pub trait Segment: ConstructItem {
-    type Fields<T: Singleton + 'static>: Singleton;
+    type Params<T: Singleton + 'static>: Singleton;
     type Design<T: Singleton + 'static>: Singleton;
     type Props<M, T: Props<M> + 'static>: Singleton;
 }
@@ -103,7 +103,7 @@ impl ConstructItem for () {
 
 impl Construct for () {
     type Base = ();
-    type Fields = ();
+    type Params = ();
     type Design = ();
     type Props<M> = NothingProps<M>;
     type NestedSequence = ();

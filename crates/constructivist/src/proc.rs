@@ -135,8 +135,8 @@ impl Parse for Construct {
 //     ($t:ty { $($rest:tt)* } ) => {
 //         {
 //             use $crate::traits::*;
-//             type Fields = <$t as $crate::Construct>::Fields;
-//             let fields = <<$t as $crate::Construct>::Fields as $crate::Singleton>::instance();
+//             type Params = <$t as $crate::Construct>::Params;
+//             let fields = <<$t as $crate::Construct>::Params as $crate::Singleton>::instance();
 //             let params = <<$t as $crate::Construct>::ExpandedParams as $crate::Extractable>::as_params();
 //
 //             // body here, see Param::build(..)
@@ -158,7 +158,7 @@ impl Construct {
         let body = self.params.build(ctx)?;
         Ok(quote! {{
             use #lib::traits::*;
-            let fields = <<#ty as #lib::Construct>::Fields as #lib::Singleton>::instance();
+            let fields = <<#ty as #lib::Construct>::Params as #lib::Singleton>::instance();
             let params = <<#ty as #lib::Construct>::ExpandedParams as #lib::Extractable>::as_params();
             #body
             let defined_params = params.defined();
