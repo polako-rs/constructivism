@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{braced, parenthesized, parse::Parse, spanned::Spanned, Expr, Token, Type};
+use syn::{braced, parenthesized, parse::Parse, spanned::Spanned, Expr, Token, Type, token::Brace};
 
 use quote::{format_ident, quote};
 
@@ -77,6 +77,9 @@ impl Parse for Params {
 }
 
 impl Params {
+    pub fn new() -> Self {
+        Params { items: vec![] }
+    }
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let mut out = quote! {};
         for param in self.items.iter() {
@@ -114,7 +117,11 @@ impl Parse for Construct {
             input.parse::<Token![*]>()?;
             flattern = false;
         }
-        let params = Params::braced(input)?;
+        let params = if input.peek(Brace) {
+            Params::braced(input)?
+        } else {
+            Params::new()
+        };
         Ok(Construct {
             ty,
             flattern,

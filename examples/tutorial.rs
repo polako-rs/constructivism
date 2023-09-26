@@ -11,9 +11,9 @@ use constructivism::*;
 #[derive(Construct)]
 #[construct(Node -> Nothing)]
 pub struct Node {
-    #[default(false)] // You can provide custom default values.
+    #[default(false)]       // You can provide custom default values.
     hidden: bool,
-    position: (f32, f32), // Or Default::default() will be used.
+    position: (f32, f32),   // Or Default::default() will be used.
 }
 
 // 1.2  **`construct!`**: You can use the `construct!` macro to create instances of Constructs.
@@ -89,11 +89,11 @@ fn create_sequence() {
 // 2.1  **Designs and Methods**: Every Construct has its own Design. You can implement methods for
 //      a Construct's design:
 impl NodeDesign {
-    pub fn move_to(&self, entity: Entity, position: (f32, f32)) {}
+    pub fn move_to(&self, entity: Entity, position: (f32, f32)) { }
 }
 
 impl RectDesign {
-    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) {}
+    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) { }
 }
 
 // 2.2  **Calling Methods**: You can call methods on a Construct's design. Method resolution
@@ -129,7 +129,7 @@ fn create_button() {
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
     assert_eq!(rect.size.0, 100.);
-    assert_eq!(node.position.0, 0.)
+    assert_eq!(node.position.0, 0.);
 }
 
 // 3.3  **Segment Design**: Segment has its own Design as well. And the method call resolves
@@ -152,7 +152,7 @@ fn focus_button() {
 //      properties on items with respect of Sequence:
 
 fn button_props() {
-    let (mut button, mut input, mut rect, mut node) = construct!(Button {});
+    let (mut button, mut input, mut rect, mut node) = construct!(Button);
 
     // You can access to props knowing only the top-level Construct
     let pos         /* Prop<Node, (f32, f32)> */    = prop!(Button.position);
@@ -198,7 +198,7 @@ pub struct Node2d {
 }
 
 fn modify_position_x() {
-    let mut node = construct!(Node2d {});
+    let mut node = construct!(Node2d);
     assert_eq!(node.position.x, 0.);
     assert_eq!(node.position.y, 0.);
 
@@ -285,7 +285,7 @@ fn create_progress_bar() {
 //      getters and setters. This setters and getters are called when you use `Prop::get`
 //      and `Prop::set`
 fn modify_progress_bar() {
-    let (mut pb, _, _) = construct!(ProgressBar {});
+    let (mut pb, _, _) = construct!(ProgressBar);
     let min = prop!(ProgressBar.min);
     let val = prop!(ProgressBar.val);
     let max = prop!(ProgressBar.max);
@@ -293,7 +293,7 @@ fn modify_progress_bar() {
     assert_eq!(pb.val, 0.);
 
     val.set(&mut pb, 2.);
-    assert_eq!(pb.val, 1.0); //becouse default for max = 1.0
+    assert_eq!(pb.val, 1.0); //because default for max = 1.0
 
     min.set(&mut pb, 5.);
     max.set(&mut pb, 10.);

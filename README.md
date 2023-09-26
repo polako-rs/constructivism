@@ -105,7 +105,7 @@ fn create_reference() {
 #[construct(Rect -> Node)]
 pub struct Rect {
     #[default((100., 100.))]
-    size: (f32, f32)
+    size: (f32, f32),
 }
 ```
 
@@ -155,7 +155,7 @@ fn use_design() {
 ```rust
 #[derive(Segment)]
 pub struct Input {
-    disabled: bool
+    disabled: bool,
 }
 
 #[derive(Construct)]
@@ -200,7 +200,7 @@ fn focus_button() {
 
 ```rust
 fn button_props() {
-    let (mut button, mut input, mut rect, mut node) = construct!(Button {});
+    let (mut button, mut input, mut rect, mut node) = construct!(Button);
     
     // You can access to props knowing only the top-level Construct
     let pos         /* Prop<Node, (f32, f32)> */    = prop!(Button.position);
@@ -245,11 +245,11 @@ pub struct Vec2 {
 #[construct(Node2d -> Nothing)] 
 pub struct Node2d {
     #[prop(construct)]      // You have to mark expandable props with #[prop(construct)]
-    position: Vec2
+    position: Vec2,
 }
 
 fn modify_position_x() {
-    let mut node = construct!(Node2d {});
+    let mut node = construct!(Node2d);
     assert_eq!(node.position.x, 0.);
     assert_eq!(node.position.y, 0.);
 
@@ -351,7 +351,7 @@ fn modify_progress_bar() {
     assert_eq!(pb.val, 0.);
 
     val.set(&mut pb, 2.);
-    assert_eq!(pb.val, 1.0);    //becouse default for max = 1.0
+    assert_eq!(pb.val, 1.0); //because default for max = 1.0
 
     min.set(&mut pb, 5.);
     max.set(&mut pb, 10.);
@@ -369,7 +369,7 @@ pub struct Range {
     max: f32,
     val: f32,
 }
-derive_segment!{
+derive_segment! {
     // use `seg` to provide type you want to derive Segment
     seg => Range;
     construct => (min: f32 = 0., max: f32 = 1., val: f32 = 0.) -> {
