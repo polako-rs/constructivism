@@ -1,12 +1,49 @@
+use std::collections::HashMap;
+
 use crate::context::Context;
 use crate::exts::TypeExt;
 use crate::throw;
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    bracketed, parenthesized, parse::{Parse, ParseStream}, spanned::Spanned, Data, DeriveInput, Expr, Ident,
-    Token, Type, Field, Fields, Attribute,
+    braced, bracketed, parenthesized,
+    parse::{Parse, ParseStream},
+    parse2,
+    spanned::Spanned,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Token, Type,
 };
+
+pub struct Declarations {
+    span: Span,
+    decls: HashMap<String, TokenStream>,
+}
+
+impl Parse for Declarations {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let span = input.span();
+        let mut decls = HashMap::new();
+        while let Ok(ident) = input.parse::<Ident>() {
+            input.parse::<Token![=>]>()?;
+            let mut stream = quote! {};
+            while !input.peek(Token![;]) {
+                let tt = input.parse::<TokenTree>()?;
+                stream = quote! { #stream #tt };
+            }
+            input.parse::<Token![;]>()?;
+            decls.insert(ident.to_string(), stream);
+        }
+        Ok(Declarations { decls, span })
+    }
+}
+
+impl Declarations {
+    pub fn parse_declaration<T: Parse>(&self, key: &str) -> syn::Result<T> {
+        let Some(stream) = self.decls.get(key) else {
+            throw!(self.span, "Missing {} declaration key", key);
+        };
+        parse2(stream.clone())
+    }
+}
 
 enum ParamType {
     Single(Type),
@@ -39,7 +76,11 @@ struct Param {
 
 impl Parse for Param {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let docs = Attribute::parse_outer(&input)?.iter().filter(|a| a.path().is_ident("doc")).cloned().collect();
+        let docs = Attribute::parse_outer(&input)?
+            .iter()
+            .filter(|a| a.path().is_ident("doc"))
+            .cloned()
+            .collect();
         let name = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty = input.parse()?;
@@ -48,13 +89,18 @@ impl Parse for Param {
             input.parse::<Token![=]>()?;
             default = ParamDefault::Custom(input.parse()?);
         }
-        Ok(Param { name, ty, default, docs })
+        Ok(Param {
+            name,
+            ty,
+            default,
+            docs,
+        })
     }
 }
 
 impl Param {
     pub fn docs(&self) -> TokenStream {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for doc in self.docs.iter() {
             out = quote! { #out #doc }
         }
@@ -82,7 +128,12 @@ impl Params for Vec<Param> {
         let mut params = vec![];
         for field in fields.iter() {
             let ty = ParamType::Single(field.ty.clone());
-            let docs = field.attrs.iter().filter(|a| a.path().is_ident("doc")).cloned().collect();
+            let docs = field
+                .attrs
+                .iter()
+                .filter(|a| a.path().is_ident("doc"))
+                .cloned()
+                .collect();
             let Some(name) = field.ident.clone() else {
                 throw!(field, "#[derive({})] only supports named structs. You can use `{}!` for complex cases.", name, alter);
             };
@@ -97,7 +148,12 @@ impl Params for Vec<Param> {
             } else {
                 ParamDefault::Default
             };
-            params.push(Param { ty, name, default, docs });
+            params.push(Param {
+                ty,
+                name,
+                default,
+                docs,
+            });
         }
         Ok(params)
     }
@@ -232,13 +288,18 @@ pub struct DeriveSegment {
 
 impl Parse for DeriveSegment {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let ty = input.parse()?;
-        let content;
-        parenthesized!(content in input);
-        let params = content.parse_terminated(Param::parse, Token![,])?;
-        let params = params.into_iter().collect();
-        let body = Some(input.parse()?);
-        Ok(DeriveSegment { ty, params, body, props: Props::default() })
+        let decls = input.parse::<Declarations>()?;
+        let ty = decls.parse_declaration("seg")?;
+        let constructor: Constructor = decls.parse_declaration("construct")?;
+        let params = constructor.params;
+        let body = Some(constructor.expr);
+        let props = decls.parse_declaration("props")?;
+        Ok(DeriveSegment {
+            ty,
+            params,
+            body,
+            props,
+        })
     }
 }
 
@@ -258,7 +319,12 @@ impl DeriveSegment {
         let params = Params::from_fields(&input.fields, "Segment", "derive_segment")?;
         let body = None;
         let props = Props::from_fields(&input.fields)?;
-        Ok(DeriveSegment { ty, params, props, body })
+        Ok(DeriveSegment {
+            ty,
+            params,
+            props,
+            body,
+        })
     }
 
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
@@ -333,7 +399,7 @@ impl DeriveSegment {
                     Self(from)
                 }
             }
-            impl<T> Props<#lib::Lookup, T> 
+            impl<T> Props<#lib::Lookup, T>
             where T:
                 #lib::Props<#lib::Lookup> +
                 #lib::Props<#lib::Get> +
@@ -426,13 +492,53 @@ pub enum PropKind {
     GetSet(Ident, Ident),
 }
 
+impl Parse for Prop {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let docs = Attribute::parse_outer(&input)?
+            .iter()
+            .filter(|a| a.path().is_ident("doc"))
+            .cloned()
+            .collect();
+        let ident = input.parse()?;
+        input.parse::<Token![:]>()?;
+        let ty = input.parse()?;
+        input.parse::<Token![=]>()?;
+        let kind = if let Ok(ident) = input.parse::<Ident>() {
+            if &ident.to_string() == "construct" {
+                PropKind::Construct
+            } else if &ident.to_string() == "value" {
+                PropKind::Value
+            } else {
+                throw!(ident, "Expected construct|value|[get,set].");
+            }
+        } else {
+            let content;
+            bracketed!(content in input);
+            let get = content.parse()?;
+            content.parse::<Token![,]>()?;
+            let set = content.parse()?;
+            if !content.is_empty() {
+                throw!(content, "Unexpected input for prop [get, set].");
+            }
+            PropKind::GetSet(get, set)
+        };
+        Ok(Prop {
+            docs,
+            ident,
+            kind,
+            ty,
+        })
+    }
+}
+
 impl Prop {
     pub fn from_field(field: &Field) -> syn::Result<Self> {
         let ty = field.ty.clone();
         let Some(ident) = field.ident.clone() else {
             throw!(field, "Anonymous fields not supported.");
         };
-        let docs = field.attrs
+        let docs = field
+            .attrs
             .iter()
             .filter(|a| a.path().is_ident("doc"))
             .cloned()
@@ -441,19 +547,37 @@ impl Prop {
         if let Some(attr) = attrs.next() {
             let spec = attr.parse_args_with(PropSpec::parse)?;
             if spec.construct() {
-                Ok(Prop { ident, ty, docs, kind: PropKind::Construct })
+                Ok(Prop {
+                    ident,
+                    ty,
+                    docs,
+                    kind: PropKind::Construct,
+                })
             } else {
                 let (get, set) = spec.getset()?;
-                Ok(Prop { ident, ty, docs, kind: PropKind::GetSet(get, set) })
+                Ok(Prop {
+                    ident,
+                    ty,
+                    docs,
+                    kind: PropKind::GetSet(get, set),
+                })
             }
         } else if let Some(ident) = field.ident.clone() {
-            Ok(Prop { ty, ident, docs, kind: PropKind::Value })
+            Ok(Prop {
+                ty,
+                ident,
+                docs,
+                kind: PropKind::Value,
+            })
         } else {
-            throw!(field, "#[param(get, set)] is required for unnamed struct fields");
+            throw!(
+                field,
+                "#[param(get, set)] is required for unnamed struct fields"
+            );
         }
     }
     pub fn docs(&self) -> TokenStream {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for attr in self.docs.iter() {
             out = quote! { #out #attr }
         }
@@ -500,7 +624,7 @@ impl Prop {
                         self.0.#ident = value;
                     }
                 }
-            },
+            }
             PropKind::Construct => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
@@ -515,7 +639,7 @@ impl Prop {
                         self.0.#ident = value;
                     }
                 }
-            },
+            }
             PropKind::GetSet(_get, set) => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
@@ -528,7 +652,7 @@ impl Prop {
                         self.0.#set(value);
                     }
                 }
-            },
+            }
         })
     }
 
@@ -545,7 +669,7 @@ impl Prop {
                         #lib::Value::Ref(&this.#ident)
                     }
                 }
-            },
+            }
             PropKind::Construct => {
                 quote! {
                     #docs
@@ -555,7 +679,7 @@ impl Prop {
                         )
                     }
                 }
-            },
+            }
             PropKind::GetSet(get, _set) => {
                 quote! {
                     #docs
@@ -563,7 +687,7 @@ impl Prop {
                         #lib::Value::Val(this.#get())
                     }
                 }
-            },
+            }
         })
     }
 
@@ -584,7 +708,7 @@ impl Prop {
                         this.#ident = value;
                     }
                 }
-            },
+            }
             PropKind::Construct => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
@@ -599,20 +723,20 @@ impl Prop {
                         this.#ident = value;
                     }
                 }
-            },
+            }
             PropKind::GetSet(_get, set) => {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #ident(self, this: &mut #this, value: #ty) {
+                    pub fn #ident(&self, this: &mut #this, value: #ty) {
                         this.#set(value);
                     }
                     #[doc(hidden)]
-                    pub fn #setter(self, this: &mut #this, value: #ty) {
+                    pub fn #setter(&self, this: &mut #this, value: #ty) {
                         this.#set(value);
                     }
                 }
-            },
+            }
         })
     }
 }
@@ -622,7 +746,10 @@ pub struct PropSpec(pub Vec<Ident>);
 impl Parse for PropSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         Ok(PropSpec(
-            input.parse_terminated(Ident::parse, Token![,])?.into_iter().collect()
+            input
+                .parse_terminated(Ident::parse, Token![,])?
+                .into_iter()
+                .collect(),
         ))
     }
 }
@@ -631,7 +758,7 @@ impl PropSpec {
         self.0.len() == 1 && &self.0[0].to_string() == "skip"
     }
     pub fn construct(&self) -> bool {
-        self.0.len() == 1 && &self.0[0].to_string() == "construct"    
+        self.0.len() == 1 && &self.0[0].to_string() == "construct"
     }
     pub fn getset(&self) -> syn::Result<(Ident, Ident)> {
         if self.0.len() == 2 {
@@ -644,11 +771,22 @@ impl PropSpec {
 
 #[derive(Default)]
 pub struct Props(Vec<Prop>);
+impl Parse for Props {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        braced!(content in input);
+        Ok(Props(
+            content
+                .parse_terminated(Prop::parse, Token![;])?
+                .into_iter()
+                .collect(),
+        ))
+    }
+}
 impl Props {
     pub fn from_fields(fields: &Fields) -> syn::Result<Self> {
         let mut props = vec![];
         for field in fields.iter() {
-        
             if let Some(attr) = field.attrs.iter().find(|a| a.path().is_ident("prop")) {
                 // attr.meta.require_list()?.
                 // attr.meta.to_token_stream()
@@ -664,7 +802,7 @@ impl Props {
         Ok(Props(props))
     }
     pub fn build_getters(&self, ctx: &Context) -> syn::Result<TokenStream> {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for prop in self.iter() {
             let getter = prop.build_getter(ctx)?;
             out = quote! { #out #getter }
@@ -672,7 +810,7 @@ impl Props {
         Ok(out)
     }
     pub fn build_setters(&self, ctx: &Context) -> syn::Result<TokenStream> {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for prop in self.iter() {
             let setter = prop.build_setter(ctx)?;
             out = quote! { #out #setter }
@@ -681,7 +819,7 @@ impl Props {
     }
 
     pub fn build_lookup_getters(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for prop in self.iter() {
             let getter = prop.build_lookup_getter(ctx, this)?;
             out = quote! { #out #getter }
@@ -690,15 +828,13 @@ impl Props {
     }
 
     pub fn build_lookup_setters(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
-        let mut out = quote! { };
+        let mut out = quote! {};
         for prop in self.iter() {
             let setter = prop.build_lookup_setter(ctx, this)?;
             out = quote! { #out #setter }
         }
         Ok(out)
     }
-
-    
 }
 impl std::ops::Deref for Props {
     type Target = Vec<Prop>;
@@ -712,6 +848,23 @@ impl std::ops::DerefMut for Props {
     }
 }
 
+pub struct Constructor {
+    params: Vec<Param>,
+    expr: Expr,
+}
+
+impl Parse for Constructor {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        parenthesized!(content in input);
+        let params = content.parse_terminated(Param::parse, Token![,])?;
+        let params = params.into_iter().collect();
+        input.parse::<Token![->]>()?;
+        let expr = input.parse()?;
+        Ok(Constructor { params, expr })
+    }
+}
+
 pub struct DeriveConstruct {
     ty: Type,
     sequence: Sequence,
@@ -722,19 +875,19 @@ pub struct DeriveConstruct {
 
 impl Parse for DeriveConstruct {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let sequence: Sequence = input.parse()?;
+        let decls = input.parse::<Declarations>()?;
+        let sequence: Sequence = decls.parse_declaration("seq")?;
         let ty = sequence.this.clone();
-        let content;
-        parenthesized!(content in input);
-        let params = content.parse_terminated(Param::parse, Token![,])?;
-        let params = params.into_iter().collect();
-        let body = Some(input.parse()?);
+        let constructor: Constructor = decls.parse_declaration("construct")?;
+        let params = constructor.params;
+        let body = Some(constructor.expr);
+        let props = decls.parse_declaration("props")?;
         Ok(DeriveConstruct {
             ty,
             params,
             body,
             sequence,
-            props: Props::default(),
+            props,
         })
     }
 }
@@ -822,7 +975,7 @@ impl DeriveConstruct {
                         <#deref_fields as #lib::Singleton>::instance()
                     }
                 }
-                
+
                 // Props
                 pub struct Props<M>(::std::marker::PhantomData<M>);
                 pub struct Getters<'a>(&'a #ty);

@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{braced, parenthesized, spanned::Spanned, parse::Parse, Expr, Token, Type};
+use syn::{braced, parenthesized, parse::Parse, spanned::Spanned, Expr, Token, Type};
 
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 
 use crate::{context::Context, throw};
 
@@ -17,7 +17,7 @@ impl Parse for Param {
         // this is kinda autocomplete
         let dot = input.parse::<Token![.]>()?;
         if input.is_empty() || input.peek(Token![,]) {
-            let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span=dot.span());
+            let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span = dot.span());
             let value = syn::parse2(quote! { true })?;
             return Ok(Param { ident, value });
         }
@@ -160,10 +160,9 @@ impl Construct {
     }
 }
 
-
 pub struct Prop {
     pub root: Type,
-    pub path: Vec<Ident>
+    pub path: Vec<Ident>,
 }
 
 impl Parse for Prop {
@@ -194,25 +193,13 @@ impl Prop {
         let last = self.path.len() - 1;
 
         for (idx, part) in self.path.iter().enumerate() {
-            let part = if idx != 0 {
-                part.clone()
-            } else {
-                let p = part.to_string();
-                if &p == "p" {
-                    part.clone()
-                } else if p.starts_with("p") {
-                    format_ident!("{}", p.strip_prefix("p").unwrap(), span = part.span() )
-                } else {
-                    part.clone()
-                }
-            };
             let setter = format_ident!("set_{}", part);
             if idx == 0 {
                 get = quote! { #get.#part(host) };
             } else {
                 get = quote! { #get.#part() };
             }
-            
+
             if idx == 0 && idx == last {
                 set = quote! { #set.#setter(host, value) };
             } else if idx == last {

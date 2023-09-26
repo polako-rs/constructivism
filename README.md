@@ -177,6 +177,7 @@ fn create_button() {
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
     assert_eq!(rect.size.0, 100.);
+    assert_eq!(node.position.0, 0.);
 }
 ```
 
@@ -195,9 +196,76 @@ fn focus_button() {
 }
 ```
 
+### Props
+
+<a name="4-1">4.1</a>  **Props**: By deriving Constructs or Segments you also get the ability to set and get properties on items with respect of Sequence:
+
+```rust
+fn button_props() {
+    let (mut button, mut input, mut rect, mut node) = construct!(Button {});
+    
+    // You can access to props knowing only the top-level Construct
+    let pos         /* Prop<Node, (f32, f32)> */    = prop!(Button.position);
+    let size        /* Prop<Rect, (f32, f32)> */    = prop!(Button.size);
+    let disabled    /* Prop<Input, bool> */         = prop!(Button.disabled);
+    let pressed     /* Prop<Button, bool */         = prop!(Button.pressed);
+
+    // You can read props. You have to pass exact item to the get()
+    let x = pos.get(&node).as_ref().0;
+    let w = size.get(&rect).as_ref().0;
+    let is_disabled = *disabled.get(&input).as_ref();
+    let is_pressed = *pressed.get(&button).as_ref();
+    assert_eq!(0., x);
+    assert_eq!(100., w);
+    assert_eq!(false, is_disabled);
+    assert_eq!(false, is_pressed);
+
+    // You can set props. You have to pass exact item to set()
+    pos.set(&mut node, (1., 1.));
+    size.set(&mut rect, (10., 10.));
+    disabled.set(&mut input, true);
+    pressed.set(&mut button, true);
+    assert_eq!(node.position.0, 1.);
+    assert_eq!(rect.size.0, 10.);
+    assert_eq!(input.disabled, true);
+    assert_eq!(button.pressed, true);
+
+}
+```
+
+<a name="4-2">4.2</a> **Expand props**: If you have field with Construct type, you can access this fields props as well:
+
+```rust
+#[derive(Construct, Default)]
+#[construct(Vec2 -> Nothing)]
+pub struct Vec2 {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Construct)]
+#[construct(Node2d -> Nothing)] 
+pub struct Node2d {
+    #[prop(construct)]      // You have to mark expandable props with #[prop(construct)]
+    position: Vec2
+}
+
+fn modify_position_x() {
+    let mut node = construct!(Node2d {});
+    assert_eq!(node.position.x, 0.);
+    assert_eq!(node.position.y, 0.);
+
+    let x = prop!(Node2d.position.x);
+
+    x.set(&mut node, 100.);
+    assert_eq!(node.position.x, 100.);
+    assert_eq!(node.position.y, 0.);
+}
+```
+
 ### Custom Constructors
 
-<a name="4-1">4.1</a> **Custom Constructors**: Sometimes you may want to implement Construct for a foreign type or provide a custom constructor. You can use `derive_construct!` for this purpose:
+<a name="5-1">5.1</a> **Custom Constructors**: Sometimes you may want to implement Construct for a foreign type or provide a custom constructor. You can use `derive_construct!` for this purpose:
 
 ```rust
 pub struct ProgressBar {
@@ -206,35 +274,96 @@ pub struct ProgressBar {
     max: f32,
 }
 
-derive_construct! {
-    ProgressBar -> Rect
 
-    // Params with default values
-    (min: f32 = 0., max: f32 = 1., val: f32 = 0.)
-    
-    // Custom constructor
-    {
+impl ProgressBar {
+    pub fn min(&self) -> f32 {
+        self.min
+    }
+    pub fn set_min(&mut self, min: f32) {
+        self.min = min;
+        if self.max < min {
+            self.max = min;
+        }
+        if self.val < min {
+            self.val = min;
+        }
+    }
+    pub fn max(&self) -> f32 {
+        self.max
+    }
+    pub fn set_max(&mut self, max: f32) {
+        self.max = max;
+        if self.min > max {
+            self.min = max;
+        }
+        if self.val > max {
+            self.val = max;
+        }
+    }
+    pub fn val(&self) -> f32 {
+        self.val
+    }
+    pub fn set_val(&mut self, val: f32) {
+        self.val = val.max(self.min).min(self.max)
+    }
+}
+
+derive_construct! {
+    // Sequence
+    seq => ProgressBar -> Rect;
+
+    // Constructor, all params with defult values
+    construct => (min: f32 = 0., max: f32 = 1., val: f32 = 0.) -> {
         if max < min {
             max = min;
         }
         val = val.min(max).max(min);
         Self { min, val, max }
-    }
+    };
+
+    // Props using getters and setters
+    props => {
+        min: f32 = [min, set_min];
+        max: f32 = [max, set_max];
+        val: f32 = [val, set_val];
+    };
 }
 ```
 
-<a name="4-2">4.2</a> **Using Custom Constructors**: The provided constructor will be called when creating instances:
+<a name="5-2">5.2</a> **Using Custom Constructors**: The provided constructor will be called when creating instances:
 
 ```rust
 fn create_progress_bar() {
-    let (range, _, _) = construct!(ProgressBar { .val: 100. });
-    assert_eq!(range.min, 0.);
-    assert_eq!(range.max, 1.);
-    assert_eq!(range.val, 1.);
+    let (pb, _, _) = construct!(ProgressBar { .val: 100. });
+    assert_eq!(pb.min, 0.);
+    assert_eq!(pb.max, 1.);
+    assert_eq!(pb.val, 1.);
 }
 ```
 
-<a name="4-3">4.3</a> **Deriving Segments**: You can derive Segments in a similar way:
+<a name="5-3">5.3</a> **Custom Construct Props**: In the example above `derive_construct!` declares props using getters and setters. This setters and getters are called when you use `Prop::get` and `Prop::set`
+
+```rust
+fn modify_progress_bar() {
+    let (mut pb, _, _) = construct!(ProgressBar {});
+    let min = prop!(ProgressBar.min);
+    let val = prop!(ProgressBar.val);
+    let max = prop!(ProgressBar.max);
+
+    assert_eq!(pb.val, 0.);
+
+    val.set(&mut pb, 2.);
+    assert_eq!(pb.val, 1.0);    //becouse default for max = 1.0
+
+    min.set(&mut pb, 5.);
+    max.set(&mut pb, 10.);
+    assert_eq!(pb.min, 5.);
+    assert_eq!(pb.val, 5.);
+    assert_eq!(pb.max, 10.);
+}
+```
+
+<a name="5-4">5.4</a> **Deriving Segments**: You can derive Segments in a similar way:
 
 ```rust
 pub struct Range {
@@ -243,13 +372,21 @@ pub struct Range {
     val: f32,
 }
 derive_segment!{
-    Range(min: f32 = 0., max: f32 = 1., val: f32 = 0.) {
+    // use `seg` to provide type you want to derive Segment
+    seg => Range;
+    construct => (min: f32 = 0., max: f32 = 1., val: f32 = 0.) -> {
         if max < min {
             max = min;
-        }
+    }
         val = val.min(max).max(min);
         Self { min, val, max }
-    }
+    };
+    // Props using fields directly
+    props => {
+        min: f32 = value;
+        max: f32 = value;
+        val: f32 = value;
+    };
 }
 
 #[derive(Construct)]

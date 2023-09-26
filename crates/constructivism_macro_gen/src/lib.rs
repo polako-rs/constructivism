@@ -11,10 +11,10 @@ pub fn implement_constructivism_macro(input: TokenStream) -> TokenStream {
     let source = include_str!("../../constructivism_macro/src/lib.rs");
     let source = source.replace("\"constructivism\"", &path);
     match TokenStream::from_str(&source) {
-        Err(e) => { 
+        Err(e) => {
             let e = e.to_string();
             TokenStream::from(quote! { compile_error!("Can't parse constructivism_macro: {}", #e) })
-        },
-        Ok(stream) => stream
+        }
+        Ok(stream) => stream,
     }
 }

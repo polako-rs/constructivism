@@ -1,12 +1,8 @@
 use constructivism::*;
 
+fn main() {}
 
-fn main() {
-
-}
-
-#[derive(Default)]
-#[derive(Construct)]
+#[derive(Default, Construct)]
 #[construct(Color -> Nothing)]
 pub struct Color {
     /// Red channel
@@ -32,35 +28,30 @@ impl Color {
 #[derive(Construct)]
 #[construct(Div -> Nothing)]
 pub struct Div {
-
     /// The background color for the Div, transparent by default.
     #[prop(construct)]
-    background: Color
+    background: Color,
 }
-
 
 #[derive(Construct)]
 #[construct(Label -> Div)]
 pub struct Label {
     /// The text coklor, black by default.
     #[prop(construct)]
-    text_color: Color
+    text_color: Color,
 }
 
-impl Label {
-    
-}
+impl Label {}
 // impl<T: Construct> Model<T> {
 //     fn props(&self) {
 //         let props = <<T as Construct>::Props as Singleton>::instance();
-
 
 //     }
 // }
 
 fn _t() {
     let _p = <<Label as Construct>::Props<Lookup> as Singleton>::instance();
-    
+
     // let _x = prop!(Label.background.);
     let _text_color_r = prop!(Label.background.r);
     let _background_r = prop!(Label.background.a);

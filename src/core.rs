@@ -60,18 +60,18 @@ impl<M> Singleton for NothingProps<M> {
         &NothingProps(PhantomData)
     }
 }
-impl<M> Props<M> for NothingProps<M> { }
+impl<M> Props<M> for NothingProps<M> {}
 impl NothingProps<Get> {
-    pub fn to_owned(&self) { }
+    pub fn to_owned(&self) {}
 }
 impl NothingProps<Set> {
-    pub fn to_owned(&self) { }
+    pub fn to_owned(&self) {}
 }
 impl NothingProps<Lookup> {
-    pub fn getters(&self) -> &'static NothingProps<Get>{
+    pub fn getters(&self) -> &'static NothingProps<Get> {
         &NothingProps(PhantomData)
     }
-    pub fn setters(&self) -> &'static NothingProps<Set>{
+    pub fn setters(&self) -> &'static NothingProps<Set> {
         &NothingProps(PhantomData)
     }
 }
@@ -90,7 +90,6 @@ impl<'a> Setters<'a, ()> for NothingSetters<'a> {
         NothingSetters(from)
     }
 }
-
 
 impl ConstructItem for () {
     type Params = ();
@@ -356,15 +355,12 @@ pub trait AsParams {
     fn as_params() -> Self::Undefined;
 }
 
-
 // Props
 pub struct Lookup;
 pub struct Get;
 pub struct Set;
 
-pub trait Props<M>: Singleton {
-
-}
+pub trait Props<M>: Singleton {}
 pub trait Getters<'a, P: ConstructItem>: Sized {
     fn from_ref(from: &'a P) -> Self;
     fn into_value(self) -> Value<'a, P>;
@@ -382,7 +378,7 @@ impl<'a, T> Value<'a, T> {
     pub fn as_ref(&'a self) -> &'a T {
         match self {
             Value::Val(ref v) => v,
-            Value::Ref(r) => *r
+            Value::Ref(r) => *r,
         }
     }
 
@@ -391,26 +387,26 @@ impl<'a, T> Value<'a, T> {
     }
 }
 
-pub struct Reader<H, T>(fn(&H) -> Value<T>);
-pub struct Writer<H, T>(fn(&mut H, T));
+pub struct Getter<H, T>(fn(&H) -> Value<T>);
+pub struct Setter<H, T>(fn(&mut H, T));
 
 pub struct Prop<H, T> {
-    reader: Reader<H, T>,
-    writer: Writer<H, T>,
+    getter: Getter<H, T>,
+    setter: Setter<H, T>,
 }
 
 impl<H, T> Prop<H, T> {
-    pub fn new(reader: fn(&H) -> Value<T>, writer: fn(&mut H, T)) -> Self {
+    pub fn new(getter: fn(&H) -> Value<T>, setter: fn(&mut H, T)) -> Self {
         Self {
-            reader: Reader(reader),
-            writer: Writer(writer)
+            getter: Getter(getter),
+            setter: Setter(setter),
         }
     }
-    pub fn read<'a>(&self, host: &'a H) -> Value<'a, T> {
-        (self.reader.0)(host)
+    pub fn get<'a>(&self, host: &'a H) -> Value<'a, T> {
+        (self.getter.0)(host)
     }
-    pub fn write(&self, host: &mut H, value: T) {
-        (self.writer.0)(host, value);
+    pub fn set(&self, host: &mut H, value: T) {
+        (self.setter.0)(host, value);
     }
 }
 
