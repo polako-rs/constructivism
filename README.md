@@ -17,11 +17,9 @@ Or let the cargo do the stuff:
 cargo add constructivism
 ```
 
-Constructivism can be inlined into you library as for example `yourlibrary_constructivism` within `constructivist` crate. 
+Constructivism can be inlined into you library as for example `yourlibrary_constructivism` within `constructivist` crate. See [instructions](./crates/constructivist).
 
-> TODO: Write instruction and/or link example projects
-
-## Theory by practice
+## Guide
 
 See also [examples/tutorial.rs](examples/tutorial.rs)
 
