@@ -10,7 +10,7 @@ use syn::{
     parse::{Parse, ParseStream},
     parse2,
     spanned::Spanned,
-    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Token, Type,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Token, Type, parse_quote,
 };
 
 pub struct Declarations {
@@ -62,6 +62,33 @@ impl Parse for ParamType {
     }
 }
 
+pub enum ParamKind {
+    Common,
+    Required,
+    Default(Expr),
+    Skip(Expr)
+}
+impl Parse for ParamKind {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ident: Ident = input.parse()?;
+        if &ident.to_string() == "required" {
+            Ok(ParamKind::Required)
+        } else if &ident.to_string() == "default" {
+            input.parse::<Token![=]>()?;
+            Ok(ParamKind::Default(input.parse()?))
+        } else if &ident.to_string() == "skip" {
+            if input.peek(Token![=]) {
+                input.parse::<Token![=]>()?;
+                Ok(ParamKind::Skip(input.parse()?))
+            } else {
+                Ok(ParamKind::Skip(parse_quote!(Default::default())))
+            }
+        } else {
+            throw!(ident, "Expected required|default|skip");
+        }
+    }
+}
+
 enum ParamDefault {
     None,
     Default,
@@ -70,7 +97,7 @@ enum ParamDefault {
 struct Param {
     name: Ident,
     ty: ParamType,
-    default: ParamDefault,
+    kind: ParamKind,
     docs: Vec<Attribute>,
 }
 
@@ -84,15 +111,16 @@ impl Parse for Param {
         let name = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty = input.parse()?;
-        let mut default = ParamDefault::None;
-        if input.peek(Token![=]) {
+        let kind = if input.peek(Token![=]) {
             input.parse::<Token![=]>()?;
-            default = ParamDefault::Custom(input.parse()?);
-        }
+            ParamKind::Default(input.parse()?)
+        } else {
+            ParamKind::Required
+        };
         Ok(Param {
             name,
             ty,
-            default,
+            kind,
             docs,
         })
     }
@@ -105,6 +133,12 @@ impl Param {
             out = quote! { #out #doc }
         }
         out
+    }
+    pub fn skip(&self) -> Option<&Expr> {
+        match self.kind {
+            ParamKind::Skip(ref expr) => Some(expr),
+            _ => None
+        }
     }
 }
 
@@ -137,21 +171,17 @@ impl Params for Vec<Param> {
             let Some(name) = field.ident.clone() else {
                 throw!(field, "#[derive({})] only supports named structs. You can use `{}!` for complex cases.", name, alter);
             };
-            let default = if field.attrs.iter().any(|a| a.path().is_ident("required")) {
-                ParamDefault::None
-            } else if let Some(default) = field.attrs.iter().find(|a| a.path().is_ident("default"))
-            {
-                let Ok(expr) = default.parse_args::<Expr>() else {
-                    throw!(name, "Invalid expression for #[default(expr)].");
-                };
-                ParamDefault::Custom(expr)
-            } else {
-                ParamDefault::Default
-            };
+            let kind = field.attrs
+                .iter()
+                .filter(|a| a.path().is_ident("param"))
+                .map(|a| a.parse_args())
+                .last()
+                .or(Some(Ok(ParamKind::Common)))
+                .unwrap()?;
             params.push(Param {
                 ty,
                 name,
-                default,
+                kind,
                 docs,
             });
         }
@@ -172,59 +202,66 @@ impl Params for Vec<Param> {
             };
             let ident = &param.name;
             let docs = param.docs();
-            param_values = quote! { #param_values #ident, };
-            type_params = quote! { #type_params #mod_ident::#ident, };
-            type_params_deconstruct =
-                quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
-            fields = quote! { #fields
-                #[allow(unused_variables)]
-                #docs
-                pub #ident: #lib::Param<#ident, #param_ty>,
-            };
-            fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
-            let default = match &param.default {
-                ParamDefault::Custom(default) => {
-                    quote! {
-                        impl Default for #ident {
-                            fn default() -> Self {
-                                #ident(#default)
+            if let Some(skip) = param.skip() {
+                param_values = quote! { #param_values #ident: #skip, };
+            } else {
+                param_values = quote! { #param_values #ident, };
+                type_params = quote! { #type_params #mod_ident::#ident, };
+                type_params_deconstruct =
+                    quote! { #type_params_deconstruct #mod_ident::#ident(mut #ident), };
+                fields = quote! { #fields
+                    #[allow(unused_variables)]
+                    #docs
+                    pub #ident: #lib::Param<#ident, #param_ty>,
+                };
+                fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
+                let default = match &param.kind {
+                    ParamKind::Default(default) => {
+                        quote! {
+                            impl Default for #ident {
+                                fn default() -> Self {
+                                    #ident(#default)
+                                }
                             }
                         }
                     }
-                }
-                ParamDefault::Default => {
-                    quote! {
-                        impl Default for #ident {
-                            fn default() -> Self {
-                                #ident(Default::default())
+                    ParamKind::Common => {
+                        quote! {
+                            impl Default for #ident {
+                                fn default() -> Self {
+                                    #ident(Default::default())
+                                }
                             }
                         }
+                    },
+                    ParamKind::Required => {
+                        quote! {}
+                    },
+                    ParamKind::Skip(skip) => {
+                        throw!(skip, "Unexected skip param");
                     }
-                }
-                ParamDefault::None => {
-                    quote! {}
-                }
-            };
-            impls = quote! { #impls
-                #default
-                #[allow(non_camel_case_types)]
-                pub struct #ident(pub #param_ty);
-                impl<T: Into<#param_ty>> From<T> for #ident {
-                    fn from(__value__: T) -> Self {
-                        #ident(__value__.into())
+                };
+                impls = quote! { #impls
+                    #default
+                    #[allow(non_camel_case_types)]
+                    pub struct #ident(pub #param_ty);
+                    impl<T: Into<#param_ty>> From<T> for #ident {
+                        fn from(__value__: T) -> Self {
+                            #ident(__value__.into())
+                        }
                     }
-                }
-                impl #lib::AsField for #ident {
-                    fn as_field() -> #lib::Field<Self> {
-                        #lib::Field::new()
+                    impl #lib::AsField for #ident {
+                        fn as_field() -> #lib::Field<Self> {
+                            #lib::Field::new()
+                        }
                     }
-                }
-                impl #lib::New<#param_ty> for #ident {
-                    fn new(from: #param_ty) -> #ident {
-                        #ident(from)
+                    impl #lib::New<#param_ty> for #ident {
+                        fn new(from: #param_ty) -> #ident {
+                            #ident(from)
+                        }
                     }
-                }
-            };
+                };
+            }
         }
         Ok(BuildedParams {
             type_params,
@@ -270,7 +307,12 @@ impl Sequence {
             .filter(|a| a.path().is_ident("construct"))
             .collect::<Vec<_>>();
         if attrs.len() == 0 {
-            throw!(input.ident, "Missing #[construct(..) attribute");
+            let ty = &input.ident;
+            return Ok(Sequence {
+                this: parse_quote! { #ty },
+                next: parse_quote! { Nothing },
+                segments: vec![],
+            })
         }
         if attrs.len() > 1 {
             throw!(attrs[1], "Unexpected #[construct(..) attribute");

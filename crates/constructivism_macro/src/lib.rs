@@ -1,4 +1,4 @@
-#[proc_macro_derive(Construct, attributes(prop, construct, required, default))]
+#[proc_macro_derive(Construct, attributes(prop, param, construct))]
 pub fn construct_derive(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::{parse_macro_input, DeriveInput};

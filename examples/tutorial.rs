@@ -1,24 +1,23 @@
+#!#[rustfmt::skip]
 #![allow(unused_variables)]
+
 // You've got to start somewhere
 use constructivism::*;
 
 // ### Constructs and Sequences
 
 // 1.1  **Constructs**: Constructivism revolves around the concept of Constructs.
-//      A Construct can be declared only in front of another Construct. `constructivism`
-//      comes with only Nothing construct. You can define new Constructs like this:
 
 #[derive(Construct)]
-#[construct(Node -> Nothing)]
 pub struct Node {
-    #[default(false)]       // You can provide custom default values.
     hidden: bool,
-    position: (f32, f32),   // Or Default::default() will be used.
+    position: (f32, f32),
 }
 
-// 1.2  **`construct!`**: You can use the `construct!` macro to create instances of Constructs.
+// 1.2  **Constructing**: You can use the `construct!` macro to create instances of Constructs.
 //      Please ***note*** the dots at the beginning of the each param, they are required and you
 //      will find this syntax quite useful.
+
 fn create_node() {
     let node = construct!(Node {
         .position: (10., 10.),
@@ -28,60 +27,103 @@ fn create_node() {
     assert_eq!(node.hidden, true);
 }
 
-// 1.3  **Skipping Fields**: You can skip the declaration of non-required fields. You can also
-//      use true-aliases: single `field` is an alias for `field: true`.
-fn create_another_node() {
-    let node = construct!(Node {
-        .hidden
-    });
-    assert_eq!(node.position.0, 0.);
-}
+// 1.3  **Sequences**: A Construct can be declared only in front of another Construct.
+//      `constructivism` comes with only Nothing, () construct. The `Self -> Base` relation
+//      called Sequence in `constrcutivism`. You can omit the Sequence declaration,
+//      `Self -> Nothing` used in this case. If you want to derive Construct on the top of another
+//      meaningful Construct, you have to specify Sequence directly using
+//      `#[construct(/* Sequence */)]` attribute.
 
-// 1.4  **Required Fields**: Non-default fields must be marked with `#[required]` to avoid
-//      compilation errors.
-
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub struct Entity;
-
-#[derive(Construct)]
-#[construct(Reference -> Nothing)]
-pub struct Reference {
-    #[required]
-    target: Entity,
-    count: usize,
-}
-
-// 1.5  **Passing Required Fields**: You must pass all required fields to `construct!(..)` to
-//      avoid compilation errors.
-fn create_reference() {
-    let reference = construct!(Reference {
-        .target: Entity
-    });
-    assert_eq!(reference.target, Entity);
-    assert_eq!(reference.count, 0);
-}
-
-// 1.6  **Sequences**: Constructs are organized in Sequences. For example, `Node -> Nothing` is
-//      a sequence. You define a local sequence to the next Construct like this:
 #[derive(Construct)]
 #[construct(Rect -> Node)]
 pub struct Rect {
-    #[default((100., 100.))]
     size: (f32, f32),
 }
 
-// 1.7  **Using Sequences**: The Sequence for Rect becomes `Rect -> Node -> Nothing` in example
-//      above. You can `construct!` the entire sequence within a single call:
+// 1.4  **Constructing Sequences**: The Sequence for the Rect  in example above becomes
+//      `Rect -> Node -> Nothing`. You can `construct!` the entire sequence within a single call:
 
 fn create_sequence() {
     let (rect, node /* nothing */) = construct!(Rect {
+        .hidden,                        // You can write just `.hidden` instead of `.hidden: true`
         .position: (10., 10.),
         .size: (10., 10.),
-        // You can skip fields, no `hidden` here, for example
     });
     assert_eq!(rect.size.0, 10.);
     assert_eq!(node.position.1, 10.);
     assert_eq!(node.hidden, false);
+}
+
+
+// 1.5  **Params**: There are different kind of Params (the things you passing to `construct!(..)`):
+//      - Common: use `Default::default()` if not passed to `construct!(..)`
+//      - Default: use provided value if not passed to `construct!(..)`
+//      - Required: must be passed to `construct!(..)`
+//      - Skip: can't be passed to `construct!(..)`, use Default::default() or provided value
+//      You configure behaviour using #[param] attribute when deriving:
+
+#[derive(Construct)]
+#[construct(Follow -> Node)]
+pub struct Follow {
+    offset: (f32, f32),                 // Common, no #[param]
+
+    #[param(required)]                  // Required
+    target: Entity,
+    
+    #[param(default = Anchor::Center)]  // Default
+    anchor: Anchor,
+
+    #[param(skip)]                      // Skip with Default::default()
+    last_computed_distance: f32,
+
+    #[param(skip = FollowState::None)]  // Skip with provided value
+    state: FollowState,
+}
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct Entity;
+
+pub enum Anchor {
+    Left,
+    Center,
+    Right,
+}
+
+pub enum FollowState {
+    None,
+    Initialized(f32)
+}
+
+// 1.6  **Passing params**: When passing params to `construct!(..)` you have to pass all required
+//      for Sequence params, or you will get the comilation error. You can omit non-required params. 
+
+fn create_elements() {
+    // omit everithing, default param values will be used
+    let (rect, node, /* nothing */) = construct!(Rect);
+    assert_eq!(node.hidden, false);
+    assert_eq!(rect.size.0, 0.);
+
+    // you have to pass target to Follow, the rest can be omited..
+    let (follow, node) = construct!(Follow {
+        .target: Entity
+    });
+    assert_eq!(follow.offset.0, 0.);
+    assert_eq!(node.hidden, false);
+
+    // ..or specified:
+    let (follow, node) = construct!(Follow {
+        .hidden,
+        .target: Entity,
+        .offset: (10., 10.),
+
+        // last_computed_distance param is skipped, uncomenting
+        // the next line will result in compilation error
+        // error: no field `last_computed_distance` on type `&follow_construct::Fields`
+        
+        // .last_computed_distance: 10.
+    });
+    assert_eq!(follow.offset.0, 10.);
+    assert_eq!(node.hidden, true);
 }
 
 // ### Design and Methods
@@ -341,8 +383,7 @@ fn create_slider() {
 
 fn main() {
     create_node();
-    create_another_node();
-    create_reference();
+    create_elements();
     create_sequence();
     use_design();
     create_button();
