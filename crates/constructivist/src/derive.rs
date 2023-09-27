@@ -43,6 +43,13 @@ impl Declarations {
         };
         parse2(stream.clone())
     }
+    pub fn parse_or_default<T: Parse + Default>(&self, key: &str) -> syn::Result<T> {
+        if let Some(stream) = self.decls.get(key) {
+            parse2(stream.clone())
+        } else {
+            Ok(T::default())
+        }
+    }
 }
 
 enum ParamType {
@@ -330,7 +337,7 @@ impl Parse for DeriveSegment {
         let constructor: Constructor = decls.parse_declaration("construct")?;
         let params = constructor.params;
         let body = Some(constructor.expr);
-        let props = decls.parse_declaration("props")?;
+        let props = decls.parse_or_default("props")?;
         Ok(DeriveSegment {
             ty,
             params,
@@ -657,8 +664,8 @@ impl Prop {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #setter(self, value: #ty) {
-                        self.0.#ident = value;
+                    pub fn #setter(self, __value__: #ty) {
+                        self.0.#ident = __value__;
                     }
                 }
             }
@@ -672,8 +679,8 @@ impl Prop {
                         )
                     }
                     #[doc(hidden)]
-                    pub fn #setter(self, value: #ty) {
-                        self.0.#ident = value;
+                    pub fn #setter(self, __value__: #ty) {
+                        self.0.#ident = __value__;
                     }
                 }
             }
@@ -681,12 +688,12 @@ impl Prop {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #ident(self, value: #ty) {
-                        self.0.#set(value);
+                    pub fn #ident(self, __value__: #ty) {
+                        self.0.#set(__value__);
                     }
                     #[doc(hidden)]
-                    pub fn #setter(self, value: #ty) {
-                        self.0.#set(value);
+                    pub fn #setter(self, __value__: #ty) {
+                        self.0.#set(__value__);
                     }
                 }
             }
@@ -702,17 +709,17 @@ impl Prop {
             PropKind::Value => {
                 quote! {
                     #docs
-                    pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
-                        #lib::Value::Ref(&this.#ident)
+                    pub fn #ident<'a>(&self, __this__: &'a #this) -> #lib::Value<'a, #ty> {
+                        #lib::Value::Ref(&__this__.#ident)
                     }
                 }
             }
             PropKind::Construct => {
                 quote! {
                     #docs
-                    pub fn #ident<'a>(&self, this: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
+                    pub fn #ident<'a>(&self, __this__: &'a #this) -> <#ty as #lib::ConstructItem>::Getters<'a> {
                         <<#ty as #lib::ConstructItem>::Getters<'a> as #lib::Getters<'a, #ty>>::from_ref(
-                            &this.#ident
+                            &__this__.#ident
                         )
                     }
                 }
@@ -720,8 +727,8 @@ impl Prop {
             PropKind::GetSet(get, _set) => {
                 quote! {
                     #docs
-                    pub fn #ident<'a>(&self, this: &'a #this) -> #lib::Value<'a, #ty> {
-                        #lib::Value::Val(this.#get())
+                    pub fn #ident<'a>(&self, __this__: &'a #this) -> #lib::Value<'a, #ty> {
+                        #lib::Value::Val(__this__.#get())
                     }
                 }
             }
@@ -737,12 +744,12 @@ impl Prop {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #ident(&self, this: &mut #this, value: #ty) {
-                        this.#ident = value;
+                    pub fn #ident(&self, __this__: &mut #this, __value__: #ty) {
+                        __this__.#ident = __value__;
                     }
                     #[doc(hidden)]
-                    pub fn #setter(&self, this: &mut #this, value: #ty) {
-                        this.#ident = value;
+                    pub fn #setter(&self, __this__: &mut #this, __value__: #ty) {
+                        __this__.#ident = __value__;
                     }
                 }
             }
@@ -750,14 +757,14 @@ impl Prop {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #ident<'a>(&self, this: &'a mut #this) -> <#ty as #lib::ConstructItem>::Setters<'a> {
+                    pub fn #ident<'a>(&self, __this__: &'a mut #this) -> <#ty as #lib::ConstructItem>::Setters<'a> {
                         <<#ty as #lib::ConstructItem>::Setters<'a> as #lib::Setters<'a, #ty>>::from_mut(
-                            &mut this.#ident
+                            &mut __this__.#ident
                         )
                     }
                     #[doc(hidden)]
-                    pub fn #setter(&self, this: &mut #this, value: #ty) {
-                        this.#ident = value;
+                    pub fn #setter(&self, __this__: &mut #this, __value__: #ty) {
+                        __this__.#ident = __value__;
                     }
                 }
             }
@@ -765,12 +772,12 @@ impl Prop {
                 let setter = format_ident!("set_{}", ident);
                 quote! {
                     #[doc(hidden)]
-                    pub fn #ident(&self, this: &mut #this, value: #ty) {
-                        this.#set(value);
+                    pub fn #ident(&self, __this__: &mut #this, __value__: #ty) {
+                        __this__.#set(__value__);
                     }
                     #[doc(hidden)]
-                    pub fn #setter(&self, this: &mut #this, value: #ty) {
-                        this.#set(value);
+                    pub fn #setter(&self, __this__: &mut #this, __value__: #ty) {
+                        __this__.#set(__value__);
                     }
                 }
             }
@@ -918,7 +925,7 @@ impl Parse for DeriveConstruct {
         let constructor: Constructor = decls.parse_declaration("construct")?;
         let params = constructor.params;
         let body = Some(constructor.expr);
-        let props = decls.parse_declaration("props")?;
+        let props = decls.parse_or_default("props")?;
         Ok(DeriveConstruct {
             ty,
             params,

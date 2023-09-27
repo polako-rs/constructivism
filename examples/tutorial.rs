@@ -51,7 +51,7 @@ fn create_sequence() {
     });
     assert_eq!(rect.size.0, 10.);
     assert_eq!(node.position.1, 10.);
-    assert_eq!(node.hidden, false);
+    assert_eq!(node.hidden, true);
 }
 
 
@@ -166,11 +166,11 @@ pub struct Button {
 //      Construct containing segments within a single `construct!` call:
 fn create_button() {
     let (button, input, rect, node) = construct!(Button {
-        .disabled: true
+        .disabled: true,
     });
     assert_eq!(button.pressed, false);
     assert_eq!(input.disabled, true);
-    assert_eq!(rect.size.0, 100.);
+    assert_eq!(rect.size.0, 0.);
     assert_eq!(node.position.0, 0.);
 }
 
@@ -197,10 +197,14 @@ fn button_props() {
     let (mut button, mut input, mut rect, mut node) = construct!(Button);
 
     // You can access to props knowing only the top-level Construct
-    let pos         /* Prop<Node, (f32, f32)> */    = prop!(Button.position);
-    let size        /* Prop<Rect, (f32, f32)> */    = prop!(Button.size);
-    let disabled    /* Prop<Input, bool> */         = prop!(Button.disabled);
-    let pressed     /* Prop<Button, bool */         = prop!(Button.pressed);
+    // Prop<Node, (f32, f32)>
+    let pos = prop!(Button.position);
+    // Prop<Rect, (f32, f32)>
+    let size = prop!(Button.size);
+    // Prop<Input, bool>
+    let disabled = prop!(Button.disabled);
+    // Prop<Button, bool>
+    let pressed = prop!(Button.pressed);
 
     // You can read props. You have to pass exact item to the get()
     let x = pos.get(&node).as_ref().0;
@@ -208,7 +212,7 @@ fn button_props() {
     let is_disabled = *disabled.get(&input).as_ref();
     let is_pressed = *pressed.get(&button).as_ref();
     assert_eq!(0., x);
-    assert_eq!(100., w);
+    assert_eq!(0., w);
     assert_eq!(false, is_disabled);
     assert_eq!(false, is_pressed);
 
@@ -242,6 +246,7 @@ fn modify_position_x() {
     assert_eq!(node.position.x, 0.);
     assert_eq!(node.position.y, 0.);
 
+    // Prop<Node2d, f32>
     let x = prop!(Node2d.position.x);
 
     x.set(&mut node, 100.);

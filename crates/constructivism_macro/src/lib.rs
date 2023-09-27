@@ -14,7 +14,7 @@ pub fn construct_derive(input: ::proc_macro::TokenStream) -> ::proc_macro::Token
     ::proc_macro::TokenStream::from(stream)
 }
 
-#[proc_macro_derive(Segment, attributes(prop, required, default))]
+#[proc_macro_derive(Segment, attributes(prop, param))]
 pub fn segment_derive(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::{parse_macro_input, DeriveInput};

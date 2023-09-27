@@ -62,10 +62,8 @@ impl<M> Singleton for NothingProps<M> {
 }
 impl<M> Props<M> for NothingProps<M> {}
 impl NothingProps<Get> {
-    pub fn to_owned(&self) {}
 }
 impl NothingProps<Set> {
-    pub fn to_owned(&self) {}
 }
 impl NothingProps<Lookup> {
     pub fn getters(&self) -> &'static NothingProps<Get> {
