@@ -60,7 +60,7 @@ fn create_sequence() {
 //      - Default: use provided value if not passed to `construct!(..)`
 //      - Required: must be passed to `construct!(..)`
 //      - Skip: can't be passed to `construct!(..)`, use Default::default() or provided value
-//      You configure behaviour using #[param] attribute when deriving:
+//      You configure behaviour using `#[param]` attribute when deriving:
 
 #[derive(Construct)]
 #[construct(Follow -> Node)]
@@ -226,14 +226,12 @@ fn button_props() {
 // 4.2 **Expand props**: If you have field with Construct type, you can access this fields props as well:
 
 #[derive(Construct, Default)]
-#[construct(Vec2 -> Nothing)]
 pub struct Vec2 {
     x: f32,
     y: f32,
 }
 
 #[derive(Construct)]
-#[construct(Node2d -> Nothing)]
 pub struct Node2d {
     #[prop(construct)] // You have to mark expandable props with #[prop(construct)]
     position: Vec2,
@@ -253,8 +251,9 @@ fn modify_position_x() {
 
 // ### Custom Constructors
 
-// 5.1  **Custom Constructors**: Sometimes you may want to implement Construct for a foreign type
-//      or provide a custom constructor. You can use `derive_construct!` for this purpose:
+// 5.1  **Custom Constructors**: Sometimes you may want to derive Construct for a foreign type
+//      or provide a custom constructor/props for your type. You can use `derive_construct!` for
+//      this purpose:
 pub struct ProgressBar {
     min: f32,
     val: f32,
