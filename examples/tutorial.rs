@@ -21,7 +21,7 @@ pub struct Node {
 fn create_node() {
     let node = construct!(Node {
         .position: (10., 10.),
-        .hidden: true
+        .hidden: true,
     });
     assert_eq!(node.position.0, 10.);
     assert_eq!(node.hidden, true);

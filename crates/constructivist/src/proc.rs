@@ -5,33 +5,44 @@ use quote::{format_ident, quote};
 
 use crate::{context::Context, throw};
 
-#[derive(Clone)]
-pub struct Param {
-    pub ident: Ident,
-    pub value: Expr,
+pub trait Value: Parse + Clone {
+    fn build(item: &Self, ctx: &Context) -> syn::Result<TokenStream>;
+    fn parse2(stream: TokenStream) -> syn::Result<Self> {
+        syn::parse2::<Self>(stream)
+    }
 }
 
-impl Parse for Param {
+impl Value for Expr {
+    fn build(item: &Self, _: &Context) -> syn::Result<TokenStream> {
+        Ok(quote! { #item })
+    }
+}
+
+#[derive(Clone)]
+pub struct Param<V: Value> {
+    pub ident: Ident,
+    pub value: V,
+}
+
+impl<V: Value> Parse for Param<V> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut value = None;
         // this is kinda autocomplete
         let dot = input.parse::<Token![.]>()?;
         if input.is_empty() || input.peek(Token![,]) {
             let ident = format_ident!("DOT_AUTOCOMPLETE_TOKEN", span = dot.span());
-            let value = syn::parse2(quote! { true })?;
+            let value = V::parse2(quote! { true })?;
             return Ok(Param { ident, value });
         }
-
         let ident: Ident = input.parse()?;
         if value.is_none() && input.peek(Token![:]) {
             input.parse::<Token![:]>()?;
-            value = Some(input.parse()?);
+            value = Some(V::parse(input)?);
         }
         if value.is_none() && (input.is_empty() || input.peek(Token![,])) {
             value = Some(syn::parse_quote_spanned! { ident.span() =>
                 true
             });
-            // value = Some(syn::parse2(quote_spanned! { ident.span() => true })?);
         }
         if value.is_none() {
             throw!(input, "Unexpected param input: {}", input.to_string());
@@ -42,14 +53,14 @@ impl Parse for Param {
         })
     }
 }
-//         let param: &$crate::Param<_, _> = &$fields.$f;
-//         let field = param.field();
-//         let value = $params.field(&field).define(param.value($e.into()));
-//         let $params = $params + value;
-impl Param {
+impl<V: Value> Param<V> {
+    //         let param: &$crate::Param<_, _> = &$fields.$f;
+    //         let field = param.field();
+    //         let value = $params.field(&field).define(param.value($e.into()));
+    //         let $params = $params + value;
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let ident = &self.ident;
-        let value = &self.value;
+        let value = V::build(&self.value, ctx)?;
         let lib = ctx.path("constructivism");
         Ok(quote! {
             let param: &#lib::Param<_, _> = &fields.#ident;
@@ -61,22 +72,24 @@ impl Param {
 }
 
 #[derive(Clone)]
-pub struct Params {
-    pub items: Vec<Param>,
+pub struct Params<V: Value> {
+    pub items: Vec<Param<V>>,
 }
 
-impl Parse for Params {
+impl<V: Value> Parse for Params<V> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Params {
-            items: input
-                .parse_terminated(Param::parse, Token![,])?
-                .into_iter()
-                .collect(),
-        })
+        let mut items = vec![];
+        while !input.is_empty() {
+            items.push(Param::<V>::parse(input)?);
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+        Ok(Params { items })
     }
 }
 
-impl Params {
+impl<V: Value> Params<V> {
     pub fn new() -> Self {
         Params { items: vec![] }
     }
@@ -103,13 +116,13 @@ impl Params {
         content.parse()
     }
 }
-pub struct Construct {
+pub struct Construct<V: Value> {
     pub ty: Type,
     pub flattern: bool,
-    pub params: Params,
+    pub params: Params<V>,
 }
 
-impl Parse for Construct {
+impl<V: Value> Parse for Construct<V> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let ty = input.parse()?;
         let mut flattern = true;
@@ -146,7 +159,7 @@ impl Parse for Construct {
 //         }
 //     };
 // }
-impl Construct {
+impl<V: Value> Construct<V> {
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let lib = ctx.path("constructivism");
         let ty = &self.ty;

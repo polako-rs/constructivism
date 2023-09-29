@@ -58,7 +58,8 @@ pub fn derive_segment(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenSt
 pub fn construct(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::parse_macro_input;
-    let cst = parse_macro_input!(input as Construct);
+    type ConstrctivismValue = syn::Expr;
+    let cst = parse_macro_input!(input as Construct<ConstrctivismValue>);
     let ctx = Context::new("constructivism");
     ::proc_macro::TokenStream::from(match cst.build(&ctx) {
         Ok(r) => r,
