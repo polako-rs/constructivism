@@ -385,12 +385,43 @@ impl<'a, T> Value<'a, T> {
     }
 }
 
-pub struct Getter<H, T>(fn(&H) -> Value<T>);
-pub struct Setter<H, T>(fn(&mut H, T));
+impl<'a, T: Clone> Value<'a, T> {
+    pub fn get(&self) -> T {
+        match self {
+            Self::Val(v) => v.clone(),
+            Self::Ref(r) => (*r).clone(),
+        }
+    }
 
+}
+
+#[derive(Copy)]
+pub struct Getter<H, T>(fn(&H) -> Value<T>);
+impl<H, T> Clone for Getter<H, T> {
+    fn clone(&self) -> Self {
+        Getter(self.0)
+    }
+}
+#[derive(Copy)]
+pub struct Setter<H, T>(fn(&mut H, T));
+impl<H, T> Clone for Setter<H, T> {
+    fn clone(&self) -> Self {
+        Setter(self.0)
+    }
+}
+
+#[derive(Copy)]
 pub struct Prop<H, T> {
     getter: Getter<H, T>,
     setter: Setter<H, T>,
+}
+impl<H, T> Clone for Prop<H, T> {
+    fn clone(&self) -> Self {
+        Self {
+            getter: self.getter.clone(),
+            setter: self.setter.clone(),
+        }
+    }
 }
 
 impl<H, T> Prop<H, T> {
@@ -405,6 +436,13 @@ impl<H, T> Prop<H, T> {
     }
     pub fn set(&self, host: &mut H, value: T) {
         (self.setter.0)(host, value);
+    }
+    pub fn getter(&self) -> fn(&H) -> Value<T> {
+        self.getter.0.clone()
+    }
+
+    pub fn setter(&self) -> fn(&mut H, T) {
+        self.setter.0.clone()
     }
 }
 
