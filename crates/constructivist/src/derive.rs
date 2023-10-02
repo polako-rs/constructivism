@@ -425,7 +425,7 @@ impl DeriveSegment {
             }
 
             // Props
-            pub struct Props<M, T: #lib::Props<M>>(
+            pub struct Props<M: 'static, T: #lib::Props<M>>(
                 ::std::marker::PhantomData<(M, T)>,
             );
             pub struct Getters<'a>(&'a #ty);
@@ -476,12 +476,12 @@ impl DeriveSegment {
                     <T as #lib::Singleton>::instance()
                 }
             }
-            impl<M, T: #lib::Props<M>> #lib::Singleton for Props<M, T> {
+            impl<M: 'static, T: #lib::Props<M>> #lib::Singleton for Props<M, T> {
                 fn instance() -> &'static Self {
                     &Props(::std::marker::PhantomData)
                 }
             }
-            impl<M, T: #lib::Props<M>> #lib::Props<M> for Props<M, T> { }
+            impl<M: 'static, T: #lib::Props<M>> #lib::Props<M> for Props<M, T> { }
 
 
         };
@@ -501,7 +501,7 @@ impl DeriveSegment {
                 }
             }
             impl #lib::Segment for #type_ident {
-                type Props<M, T: #lib::Props<M> + 'static> = #mod_ident::Props<M, T>;
+                type Props<M: 'static, T: #lib::Props<M> + 'static> = #mod_ident::Props<M, T>;
                 type Params<T: #lib::Singleton + 'static> = #mod_ident::Params<T>;
                 type Design<T: #lib::Singleton + 'static> = #design<T>;
             }
@@ -1021,7 +1021,7 @@ impl DeriveConstruct {
                 }
 
                 // Props
-                pub struct Props<M>(::std::marker::PhantomData<M>);
+                pub struct Props<M: 'static>(::std::marker::PhantomData<M>);
                 pub struct Getters<'a>(&'a #ty);
                 pub struct Setters<'a>(&'a mut #ty);
                 impl<'a> #lib::Getters<'a, #ty> for Getters<'a> {
@@ -1065,12 +1065,12 @@ impl DeriveConstruct {
                         <#deref_props as #lib::Singleton>::instance()
                     }
                 }
-                impl<M> #lib::Singleton for Props<M> {
+                impl<M: 'static> #lib::Singleton for Props<M> {
                     fn instance() -> &'static Self {
                         &Props(::std::marker::PhantomData)
                     }
                 }
-                impl<M> #lib::Props<M> for Props<M> { }
+                impl<M: 'static> #lib::Props<M> for Props<M> { }
             }
         };
         let derive = {
@@ -1126,7 +1126,7 @@ impl DeriveConstruct {
                     type Sequence = <Self::NestedSequence as #lib::Flattern>::Output;
                     type Base = #base;
                     type Params = #mod_ident::Params;
-                    type Props<M> = #mod_ident::Props<M>;
+                    type Props<M: 'static> = #mod_ident::Props<M>;
                     type Design = #design;
                     type MixedParams = (#mixed_params);
                     type NestedSequence = (Self, #base_sequence);

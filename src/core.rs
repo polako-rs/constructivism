@@ -18,7 +18,7 @@ pub trait ConstructItem: Sized {
     type Params: Extractable;
     type Getters<'a>: Getters<'a, Self>;
     type Setters<'a>: Setters<'a, Self>;
-    fn construct_item(params: Self::Params) -> Self;
+    fn construct_item(params: <Self::Params as Extractable>::Output) -> Self;
 }
 
 /// Main building block of constructivism
@@ -28,7 +28,7 @@ pub trait Construct: ConstructItem {
 
     type Params: Singleton;
     type Design: Singleton;
-    type Props<M>: Props<M>;
+    type Props<M: 'static>: Props<M>;
 
     type MixedParams: Extractable;
     type ExpandedParams: Extractable;
@@ -44,7 +44,30 @@ pub trait Construct: ConstructItem {
 pub trait Segment: ConstructItem {
     type Params<T: Singleton + 'static>: Singleton;
     type Design<T: Singleton + 'static>: Singleton;
-    type Props<M, T: Props<M> + 'static>: Singleton;
+    type Props<M: 'static, T: Props<M> + 'static>: Singleton + Props<M>;
+}
+
+impl<T: Segment> Construct for T {
+    type Base = ();
+    type Sequence = T;
+
+    type Params = <T as Segment>::Params<()>;
+    type Design = <T as Segment>::Design<()>;
+    type Props<M: 'static> = <T as Segment>::Props<M, NothingProps<M>>;
+
+
+    type MixedParams = <T as ConstructItem>::Params;
+    type ExpandedParams = <T as ConstructItem>::Params;
+    type NestedSequence = (T, ());
+
+    fn construct<P, const I: u8>(params: P) -> Self::NestedSequence where P: ExtractParams<
+        I, Self::MixedParams,
+        Value = <Self::MixedParams as Extractable>::Output,
+        Rest = <<<Self::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+    > {
+        let (params, _) = params.extract_params();
+        (<T as ConstructItem>::construct_item(params), ())
+    }
 }
 
 #[macro_export]
@@ -60,7 +83,7 @@ impl<M> Singleton for NothingProps<M> {
         &NothingProps(PhantomData)
     }
 }
-impl<M> Props<M> for NothingProps<M> {}
+impl<M: 'static> Props<M> for NothingProps<M> {}
 impl NothingProps<Get> {
 }
 impl NothingProps<Set> {
@@ -103,7 +126,7 @@ impl Construct for () {
     type Base = ();
     type Params = ();
     type Design = ();
-    type Props<M> = NothingProps<M>;
+    type Props<M: 'static> = NothingProps<M>;
     type NestedSequence = ();
     type MixedParams = ();
     type ExpandedParams = ();
@@ -358,7 +381,7 @@ pub struct Lookup;
 pub struct Get;
 pub struct Set;
 
-pub trait Props<M>: Singleton {}
+pub trait Props<M>: Singleton + 'static {}
 pub trait Getters<'a, P: ConstructItem>: Sized {
     fn from_ref(from: &'a P) -> Self;
     fn into_value(self) -> Value<'a, P>;
