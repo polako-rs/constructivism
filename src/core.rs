@@ -83,7 +83,11 @@ impl<M> Singleton for NothingProps<M> {
         &NothingProps(PhantomData)
     }
 }
-impl<M: 'static> Props<M> for NothingProps<M> {}
+impl<M: 'static> Props<M> for NothingProps<M> {
+    
+}
+impl Props<Get> for NothingProps<Lookup> { }
+impl Props<Set> for NothingProps<Lookup> { }
 impl NothingProps<Get> {
 }
 impl NothingProps<Set> {
@@ -381,7 +385,7 @@ pub struct Lookup;
 pub struct Get;
 pub struct Set;
 
-pub trait Props<M>: Singleton + 'static {}
+pub trait Props<M: 'static>: Singleton + 'static {}
 pub trait Getters<'a, P: ConstructItem>: Sized {
     fn from_ref(from: &'a P) -> Self;
     fn into_value(self) -> Value<'a, P>;
