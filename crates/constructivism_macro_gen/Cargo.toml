@@ -2,6 +2,11 @@
 name = "constructivism_macro_gen"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Macro helper for constructivist"
+homepage = "https://github.com/polako-rs/constructivism/tree/main/crates/constructivism_macro_gen"
+repository = "https://github.com/polako-rs/constructivism"
 
 [lib]
 proc-macro = true

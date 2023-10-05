@@ -29,7 +29,7 @@ pub fn implement_constructivism_macro(input: TokenStream) -> TokenStream {
     let settings = parse_macro_input!(input as ConstructivismSettnigs);
     // let path = settings.domain;
     // let path = format!("\"{path}\"");
-    let source = include_str!("../../constructivism_macro/src/lib.rs");
+    let source = include_str!("constructivism_macro.include");
     let exact_domain = format!("\"{}\"", settings.domain);
     let source = source.replace("\"constructivism\"", &exact_domain);
     let exact_value = format!("type ConstrctivismValue = {};", settings.value_type);

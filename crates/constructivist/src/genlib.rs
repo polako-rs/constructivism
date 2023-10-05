@@ -39,7 +39,7 @@ pub fn implement_constructivism_core(max_size: u8) -> TokenStream {
 }
 
 pub fn implement_constructivism(max_size: u8) -> TokenStream {
-    let source = include_str!("../../../src/core.rs");
+    let source = include_str!("core.include");
     let source = source
         .lines()
         .filter(|l| !l.contains("@constructivist-no-expose"))

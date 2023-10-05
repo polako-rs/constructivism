@@ -2,6 +2,11 @@
 name = "constructivist"
 version = "0.0.1"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Simplify the construction of structured data."
+homepage = "https://github.com/polako-rs/constructivism/tree/main/crates/constructivist"
+repository = "https://github.com/polako-rs/constructivism"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,4 +15,4 @@ proc-macro2 = "1.0.66"
 quote = "1.0.33"
 syn = { version = "2.0.29", features = ["full"]}
 toml = "0.7.6"
-constructivism_macro_gen = { path = "../constructivism_macro_gen"}
+constructivism_macro_gen = { path = "../constructivism_macro_gen", version = "0.1.0" }

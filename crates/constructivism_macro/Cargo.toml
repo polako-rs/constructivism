@@ -2,6 +2,11 @@
 name = "constructivism_macro"
 version = "0.0.1"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Simplify the construction of structured data."
+homepage = "https://github.com/polako-rs/constructivism/tree/main/crates/constructivism_macro"
+repository = "https://github.com/polako-rs/constructivism"
 
 [lib]
 proc-macro = true
@@ -13,4 +18,4 @@ proc-macro2 = "1.0.66"
 quote = "1.0.33"
 syn = { version = "2.0.29", features = ["full"]}
 toml = "0.7.6"
-constructivist = { path = "../constructivist" }
+constructivist = { path = "../constructivist", version = "0.0.1"}
