@@ -8,7 +8,7 @@ To use Constructivism in your Rust project, add it as a dependency in your `Carg
 
 ```toml
 [dependencies]
-constructivism = "0.0.1"
+constructivism = "0.0.2"
 ```
 
 Or let the cargo do the stuff:
@@ -17,7 +17,7 @@ Or let the cargo do the stuff:
 cargo add constructivism
 ```
 
-Constructivism can be inlined into you library as for example `yourlibrary_constructivism` within `constructivist` crate. See [instructions](./crates/constructivist).
+Constructivism can be inlined into you library as for example `your_library_constructivism` within `constructivist` crate. See [instructions](./crates/constructivist).
 
 ## Guide
 
@@ -33,11 +33,10 @@ use constructivism::*;
 
 ### Constructs and Sequences
 
-<a name="1-1">1.1</a>. **Constructs**: Constructivism revolves around the concept of Constructs. A Construct can be declared only in front of another Construct. `constructivism` comes with only Nothing construct. You can define new Constructs like this:
+<a name="1-1">1.1</a>. **Constructs**: Constructivism revolves around the concept of Constructs. You can derive construct like this:
 
 ```rust
 #[derive(Construct)]
-#[construct(Node -> Nothing)]
 pub struct Node {
     hidden: bool,
     position: (f32, f32),
@@ -57,7 +56,7 @@ fn create_node() {
 }
 ```
 
-<a name="1-3">1.3</a>  **Sequences**: A Construct can be declared only in front of another Construct. `constructivism` comes with only Nothing, () construct. The `Self -> Base` relation called Sequence in `constrcutivism`. You can omit the Sequence declaration, `Self -> Nothing` used in this case. If you want to derive Construct on the top of another meaningful Construct, you have to specify Sequence directly with `#[construct(/* Sequence */)]` attribute.
+<a name="1-3">1.3</a>  **Sequences**: A Construct can be declared only in front of another Construct. `constructivism` comes with only Nothing, () construct. The `Self -> Base` relation called Sequence in `constructivism`. You can omit the Sequence declaration, `Self -> Nothing` used in this case. If you want to derive Construct on the top of another meaningful Construct, you have to specify Sequence directly with `#[construct(/* Sequence */)]` attribute.
 
 ```rust
 #[derive(Construct)]
@@ -87,7 +86,7 @@ fn create_sequence() {
 - Default: use provided value if not passed to `construct!(..)`
 - Required: must be passed to `construct!(..)`
 - Skip: can't be passed to `construct!(..)`, use Default::default() or provided value
-You configure behaviour using `#[param]` attribute when deriving:
+You configure behavior using `#[param]` attribute when deriving:
 
 
 ```rust
@@ -124,16 +123,16 @@ pub enum FollowState {
 }
 ```
 
-<a name="1-6">1.6</a> **Passing params**: When passing params to `construct!(..)` you have to pass all required for Sequence params, or you will get the comilation error. You can omit non-required params. 
+<a name="1-6">1.6</a> **Passing params**: When passing params to `construct!(..)` you have to pass all required for Sequence params, or you will get the compilation error. You can omit non-required params. 
 
 ```rust
 fn create_elements() {
-    // omit everithing, default param values will be used
+    // omit everything, default param values will be used
     let (rect, node, /* nothing */) = construct!(Rect);
     assert_eq!(node.hidden, false);
     assert_eq!(rect.size.0, 0.);
 
-    // you have to pass target to Follow, the rest can be omited..
+    // you have to pass target to Follow, the rest can be omitted..
     let (follow, node) = construct!(Follow {
         .target: Entity
     });
@@ -146,7 +145,7 @@ fn create_elements() {
         .target: Entity,
         .offset: (10., 10.),
 
-        // last_computed_distance param is skipped, uncomenting
+        // last_computed_distance param is skipped, uncommenting
         // the next line will result in compilation error
         // error: no field `last_computed_distance` on type `&follow_construct::Params`
         
@@ -212,7 +211,7 @@ fn create_button() {
 }
 ```
 
-<a name="3-3">3.3</a> **Segment Design**: Segment has its own Design as well. And the method call resolves within the Sequence order as well. Segment's designes has one generic parameter - the next segment/construct, so you have to respect it when implement Segment's Design:
+<a name="3-3">3.3</a> **Segment Design**: Segment has its own Design as well. And the method call resolves within the Sequence order as well. Segment's designs has one generic parameter - the next segment/construct, so you have to respect it when implement Segment's Design:
 
 ```rust
 impl<T> InputDesign<T> {
@@ -343,7 +342,7 @@ derive_construct! {
     // Sequence
     seq => ProgressBar -> Rect;
 
-    // Constructor, all params with defult values
+    // Constructor, all params with default values
     construct => (min: f32 = 0., max: f32 = 1., val: f32 = 0.) -> {
         if max < min {
             max = min;
