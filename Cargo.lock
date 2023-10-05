@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "constructivism"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "constructivism_macro",
  "tuple_utils",
