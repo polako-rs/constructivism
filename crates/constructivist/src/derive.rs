@@ -52,7 +52,7 @@ impl Declarations {
     }
 }
 
-enum ParamType {
+pub enum ParamType {
     Single(Type),
     Union(Vec<Param>),
 }
@@ -96,11 +96,11 @@ impl Parse for ParamKind {
     }
 }
 
-struct Param {
-    name: Ident,
-    ty: ParamType,
-    kind: ParamKind,
-    docs: Vec<Attribute>,
+pub struct Param {
+    pub name: Ident,
+    pub ty: ParamType,
+    pub kind: ParamKind,
+    pub docs: Vec<Attribute>,
 }
 
 impl Parse for Param {
@@ -910,11 +910,11 @@ impl Parse for Constructor {
 }
 
 pub struct DeriveConstruct {
-    ty: Type,
-    sequence: Sequence,
-    params: Vec<Param>,
-    props: Props,
-    body: Option<Expr>,
+    pub ty: Type,
+    pub sequence: Sequence,
+    pub params: Vec<Param>,
+    pub props: Props,
+    pub body: Option<Expr>,
 }
 
 impl Parse for DeriveConstruct {

@@ -5,15 +5,32 @@ use quote::{format_ident, quote};
 
 use crate::{context::Context, throw};
 
+
+pub trait ContextLike {
+    fn path(&self, name: &'static str) -> TokenStream;
+    fn constructivism(&self) -> TokenStream {
+        self.path("constructivism")
+    }
+}
+
+impl ContextLike for Context {
+    fn path(&self, name: &'static str) -> TokenStream {
+        self.path(name)
+    }
+}
+
+
 pub trait Value: Parse + Clone {
-    fn build(item: &Self, ctx: &Context) -> syn::Result<TokenStream>;
+    type Context: ContextLike;
+    fn build(item: &Self, ctx: &Self::Context) -> syn::Result<TokenStream>;
     fn parse2(stream: TokenStream) -> syn::Result<Self> {
         syn::parse2::<Self>(stream)
     }
 }
 
 impl Value for Expr {
-    fn build(item: &Self, _: &Context) -> syn::Result<TokenStream> {
+    type Context = Context;
+    fn build(item: &Self, _: &Self::Context) -> syn::Result<TokenStream> {
         Ok(quote! { #item })
     }
 }
@@ -58,7 +75,7 @@ impl<V: Value> Param<V> {
     //         let field = param.field();
     //         let value = $params.field(&field).define(param.value($e.into()));
     //         let $params = $params + value;
-    pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
         let ident = &self.ident;
         let value = V::build(&self.value, ctx)?;
         let lib = ctx.path("constructivism");
@@ -93,7 +110,7 @@ impl<V: Value> Params<V> {
     pub fn new() -> Self {
         Params { items: vec![] }
     }
-    pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
         let mut out = quote! {};
         for param in self.items.iter() {
             let param = param.build(ctx)?;
@@ -160,7 +177,7 @@ impl<V: Value> Parse for Construct<V> {
 //     };
 // }
 impl<V: Value> Construct<V> {
-    pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
         let lib = ctx.path("constructivism");
         let ty = &self.ty;
         let flattern = if self.flattern {

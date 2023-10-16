@@ -19,11 +19,13 @@ pub fn segment_derive(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenSt
     use ::constructivist::prelude::*;
     use ::syn::{parse_macro_input, DeriveInput};
     let input = parse_macro_input!(input as DeriveInput);
+    type ConstructivismContext = Context;
+    let ctx = ConstructivismContext::new("constructivism");
     let constructable = match DeriveSegment::from_derive(input) {
         Err(e) => return ::proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
-    let stream = match constructable.build(&Context::new("constructivism")) {
+    let stream = match constructable.build(&ctx) {
         Err(e) => return ::proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
@@ -34,8 +36,10 @@ pub fn segment_derive(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenSt
 pub fn derive_construct(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::parse_macro_input;
+    type ConstructivismContext = Context;
+    let ctx = ConstructivismContext::new("constructivism");
     let input = parse_macro_input!(input as DeriveConstruct);
-    let stream = match input.build(&Context::new("constructivism")) {
+    let stream = match input.build(&ctx) {
         Err(e) => return ::proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
@@ -47,7 +51,9 @@ pub fn derive_segment(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenSt
     use ::constructivist::prelude::*;
     use ::syn::parse_macro_input;
     let input = parse_macro_input!(input as DeriveSegment);
-    let stream = match input.build(&Context::new("constructivism")) {
+    type ConstructivismContext = Context;
+    let ctx = ConstructivismContext::new("constructivism");
+    let stream = match input.build(&ctx) {
         Err(e) => return ::proc_macro::TokenStream::from(e.to_compile_error()),
         Ok(c) => c,
     };
@@ -58,9 +64,10 @@ pub fn derive_segment(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenSt
 pub fn construct(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::parse_macro_input;
-    type ConstrctivismValue = syn::Expr;
-    let cst = parse_macro_input!(input as Construct<ConstrctivismValue>);
-    let ctx = Context::new("constructivism");
+    type ConstructivismValue = syn::Expr;
+    type ConstructivismContext = Context;
+    let cst = parse_macro_input!(input as Construct<ConstructivismValue>);
+    let ctx = ConstructivismContext::new("constructivism");
     ::proc_macro::TokenStream::from(match cst.build(&ctx) {
         Ok(r) => r,
         Err(e) => e.to_compile_error(),
@@ -71,7 +78,8 @@ pub fn prop(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {
     use ::constructivist::prelude::*;
     use ::syn::parse_macro_input;
     let cst = parse_macro_input!(input as Prop);
-    let ctx = Context::new("constructivism");
+    type ConstructivismContext = Context;
+    let ctx = ConstructivismContext::new("constructivism");
     ::proc_macro::TokenStream::from(match cst.build(&ctx) {
         Ok(r) => r,
         Err(e) => e.to_compile_error(),
