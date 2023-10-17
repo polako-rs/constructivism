@@ -88,6 +88,7 @@ impl<M: 'static> Props<M> for NothingProps<M> {
 }
 impl Props<Get> for NothingProps<Lookup> { }
 impl Props<Set> for NothingProps<Lookup> { }
+impl Props<Describe> for NothingProps<Lookup> { }
 impl NothingProps<Get> {
 }
 impl NothingProps<Set> {
@@ -384,6 +385,7 @@ pub trait AsParams {
 pub struct Lookup;
 pub struct Get;
 pub struct Set;
+pub struct Describe;
 
 pub trait Props<M: 'static>: Singleton + 'static {}
 pub trait Getters<'a, P: ConstructItem>: Sized {
@@ -442,6 +444,12 @@ pub struct Prop<H, T> {
     getter: Getter<H, T>,
     setter: Setter<H, T>,
 }
+
+
+pub trait TypeReference {
+    type Type;
+}
+
 impl<H, T> Clone for Prop<H, T> {
     fn clone(&self) -> Self {
         Self {

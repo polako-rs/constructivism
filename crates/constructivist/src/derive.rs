@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::context::Context;
-use crate::exts::TypeExt;
+use crate::exts::*;
 use crate::throw;
 use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
@@ -391,6 +391,7 @@ impl DeriveSegment {
         } = self.params.build(ctx, &ty, &mod_ident)?;
         let props_getters = self.props.build_lookup_getters(ctx, &ty)?;
         let props_setters = self.props.build_lookup_setters(ctx, &ty)?;
+        let props_descriptors = self.props.build_type_descriptors(ctx, &ty)?;
         let getters = self.props.build_getters(ctx)?;
         let setters = self.props.build_setters(ctx)?;
         let construct = if let Some(expr) = &self.body {
@@ -425,6 +426,10 @@ impl DeriveSegment {
             }
 
             // Props
+            pub struct TypeReference;
+            impl #lib::TypeReference for TypeReference {
+                type Type = #ty;
+            }
             pub struct Props<M: 'static, T: #lib::Props<M>>(
                 ::std::marker::PhantomData<(M, T)>,
             );
@@ -447,7 +452,8 @@ impl DeriveSegment {
             where T:
                 #lib::Props<#lib::Lookup> +
                 #lib::Props<#lib::Get> +
-                #lib::Props<#lib::Set>
+                #lib::Props<#lib::Set> +
+                #lib::Props<#lib::Describe>
             {
                 pub fn getters(&self) -> &'static Props<#lib::Get, T> {
                     <Props<#lib::Get, T> as #lib::Singleton>::instance()
@@ -456,6 +462,10 @@ impl DeriveSegment {
                 pub fn setters(&self) -> &'static Props<#lib::Set, T> {
                     <Props<#lib::Set, T> as #lib::Singleton>::instance()
                 }
+                #[doc(hidden)]
+                pub fn descriptors(&self) -> &'static Props<#lib::Describe, T> {
+                    <Props<#lib::Describe, T> as #lib::Singleton>::instance()
+                }
             }
             impl<T: #lib::Props<#lib::Get>> Props<#lib::Get, T> {
                 #props_getters
@@ -463,6 +473,9 @@ impl DeriveSegment {
             #[doc(hidden)]
             impl<T: #lib::Props<#lib::Set>> Props<#lib::Set, T> {
                 #props_setters
+            }
+            impl<T: #lib::Props<#lib::Describe>> Props<#lib::Describe, T> {
+                #props_descriptors
             }
             impl<'a> Getters<'a> {
                 #getters
@@ -783,6 +796,15 @@ impl Prop {
             }
         })
     }
+
+    pub fn build_type_descriptor(&self, _ctx: &Context, _this: &Type) -> syn::Result<TokenStream> {
+        let ident = &self.ident;
+        Ok(quote! {
+            fn #ident(&self) -> &'static TypeReference {
+                &TypeReference
+            }
+        })
+    }
 }
 
 pub struct PropSpec(pub Vec<Ident>);
@@ -876,6 +898,15 @@ impl Props {
         for prop in self.iter() {
             let setter = prop.build_lookup_setter(ctx, this)?;
             out = quote! { #out #setter }
+        }
+        Ok(out)
+    }
+
+    pub fn build_type_descriptors(&self, ctx: &Context, this: &Type) -> syn::Result<TokenStream> {
+        let mut out = quote! {};
+        for prop in self.iter() {
+            let descriptor = prop.build_type_descriptor(ctx, this)?;
+            out = quote! { #out #descriptor };
         }
         Ok(out)
     }
@@ -983,6 +1014,7 @@ impl DeriveConstruct {
         } = self.params.build(ctx, &ty, &mod_ident)?;
         let props_getters = self.props.build_lookup_getters(ctx, &ty)?;
         let props_setters = self.props.build_lookup_setters(ctx, &ty)?;
+        let props_descriptors = self.props.build_type_descriptors(ctx, &ty)?;
         let getters = self.props.build_getters(ctx)?;
         let setters = self.props.build_setters(ctx)?;
         let decls = {
@@ -1024,6 +1056,10 @@ impl DeriveConstruct {
                 pub struct Props<M: 'static>(::std::marker::PhantomData<M>);
                 pub struct Getters<'a>(&'a #ty);
                 pub struct Setters<'a>(&'a mut #ty);
+                pub struct TypeReference;
+                impl #lib::TypeReference for TypeReference {
+                    type Type = #ty;
+                }
                 impl<'a> #lib::Getters<'a, #ty> for Getters<'a> {
                     fn from_ref(from: &'a #ty) -> Self {
                         Self(from)
@@ -1045,6 +1081,13 @@ impl DeriveConstruct {
                     pub fn setters(&self) -> &'static Props<#lib::Set> {
                         <Props<#lib::Set> as #lib::Singleton>::instance()
                     }
+                    #[doc(hidden)]
+                    pub fn descriptors(&self) -> &'static Props<#lib::Describe> {
+                        <Props<#lib::Describe> as #lib::Singleton>::instance()
+                    }
+                }
+                impl Props<#lib::Describe> {
+                    #props_descriptors
                 }
                 impl Props<#lib::Get> {
                     #props_getters
