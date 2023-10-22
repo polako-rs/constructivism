@@ -277,9 +277,9 @@ impl Params for Vec<Param> {
 }
 
 pub struct Sequence {
-    this: Type,
-    segments: Vec<Type>,
-    next: Type,
+    pub this: Type,
+    pub segments: Vec<Type>,
+    pub next: Type,
 }
 
 impl Parse for Sequence {
@@ -800,7 +800,7 @@ impl Prop {
     pub fn build_type_descriptor(&self, _ctx: &Context, _this: &Type) -> syn::Result<TokenStream> {
         let ident = &self.ident;
         Ok(quote! {
-            fn #ident(&self) -> &'static TypeReference {
+            pub fn #ident(&self) -> &'static TypeReference {
                 &TypeReference
             }
         })
@@ -993,16 +993,28 @@ impl DeriveConstruct {
         })
     }
 
+    pub fn mod_ident(&self) -> syn::Result<Ident> {
+        let type_ident = self.ty.as_ident()?;
+        Ok(format_ident!(
+            "{}_construct",
+            type_ident.to_string().to_lowercase()
+        ))
+    }
+
+    pub fn design_ident(&self) -> syn::Result<Ident> {
+        let type_ident = self.ty.as_ident()?;
+        Ok(format_ident!(
+            "{}Design",
+            type_ident.to_string()
+        ))
+    }
+
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
         let ty = &self.ty;
         let lib = ctx.path("constructivism");
         let type_ident = ty.as_ident()?;
-        let mod_ident = format_ident!(
-            // slider_construct
-            "{}_construct",
-            type_ident.to_string().to_lowercase()
-        );
-        let design = format_ident!("{}Design", type_ident.to_string());
+        let mod_ident = self.mod_ident()?;
+        let design = self.design_ident()?;
         let mut deref_design;
         let BuildedParams {
             fields,

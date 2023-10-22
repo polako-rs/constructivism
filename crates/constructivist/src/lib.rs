@@ -1,6 +1,6 @@
 pub mod context;
 pub mod derive;
-mod exts;
+pub mod exts;
 pub mod genlib;
 pub mod proc;
 pub mod throw;
