@@ -30,18 +30,23 @@ impl Context {
             return cached;
         }
         let prefix = self.prefix;
-        let iprefix = format_ident!("{prefix}");
+        let prefix_ident = format_ident!("{prefix}");
         let global = format_ident!("{name}");
         let local = format_ident!("{prefix}_{name}");
         let lib = if name == prefix {
-            quote! { ::#iprefix }
+            quote! { ::#prefix_ident }
         } else {
-            quote! { ::#iprefix::#global }
+            quote! { ::#prefix_ident::#global }
         };
         let Some(manifest_path) = std::env::var_os("CARGO_MANIFEST_DIR")
             .map(std::path::PathBuf::from)
-            .map(|mut path| { path.push("Cargo.toml"); path })
-            else { return self.cache(name, lib) };
+            .map(|mut path| {
+                path.push("Cargo.toml");
+                path
+            })
+        else {
+            return self.cache(name, lib);
+        };
         let Ok(manifest) = std::fs::read_to_string(&manifest_path) else {
             return self.cache(name, lib);
         };
@@ -49,10 +54,18 @@ impl Context {
             return self.cache(name, lib);
         };
 
-        let Some(pkg) = manifest.get("package") else { return self.cache(name, lib) };
-        let Some(pkg) = pkg.as_table() else { return self.cache(name, lib) };
-        let Some(pkg) = pkg.get("name") else { return self.cache(name, lib) };
-        let Some(pkg) = pkg.as_str() else { return self.cache(name, lib) };
+        let Some(pkg) = manifest.get("package") else {
+            return self.cache(name, lib);
+        };
+        let Some(pkg) = pkg.as_table() else {
+            return self.cache(name, lib);
+        };
+        let Some(pkg) = pkg.get("name") else {
+            return self.cache(name, lib);
+        };
+        let Some(pkg) = pkg.as_str() else {
+            return self.cache(name, lib);
+        };
         if pkg == &format!("{prefix}_{name}") {
             self.cache(name, quote! { crate })
         } else if pkg.starts_with(&format!("{prefix}_mod_")) {

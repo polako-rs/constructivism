@@ -67,11 +67,20 @@ pub fn construct(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream 
     type ConstructivismValue = syn::Expr;
     type ConstructivismContext = Context;
     let cst = parse_macro_input!(input as Construct<ConstructivismValue>);
-    let ctx = ConstructivismContext::new("constructivism");
-    ::proc_macro::TokenStream::from(match cst.build(&ctx) {
-        Ok(r) => r,
-        Err(e) => e.to_compile_error(),
-    })
+    ::proc_macro::TokenStream::from(
+        match ::constructivist::proc::build(
+            ConstructivismContext::new("constructivism"),
+            move |ctx| cst.build(ctx),
+        ) {
+            Ok(r) => r,
+            Err(e) => e.to_compile_error(),
+        },
+    )
+    // let mut ctx = ConstructivismContext::new("constructivism");
+    // ::proc_macro::TokenStream::from(match cst.build(Ref::new(&mut ctx)) {
+    //     Ok(r) => r,
+    //     Err(e) => e.to_compile_error(),
+    // })
 }
 #[proc_macro]
 pub fn prop(input: ::proc_macro::TokenStream) -> ::proc_macro::TokenStream {

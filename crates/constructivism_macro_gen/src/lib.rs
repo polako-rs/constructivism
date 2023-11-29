@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{self, parse_macro_input, LitStr, parse::Parse, Type, Token};
+use syn::{self, parse::Parse, parse_macro_input, LitStr, Token, Type};
 
 struct ConstructivismSettnigs {
     pub domain: String,
@@ -28,7 +28,11 @@ impl Parse for ConstructivismSettnigs {
             let vt = quote! { #vt };
             context_type = vt.to_string();
         }
-        Ok(ConstructivismSettnigs { domain, value_type, context_type })
+        Ok(ConstructivismSettnigs {
+            domain,
+            value_type,
+            context_type,
+        })
     }
 }
 

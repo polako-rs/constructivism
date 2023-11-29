@@ -1,6 +1,8 @@
 #!#[rustfmt::skip]
 #![allow(unused_variables)]
 
+use std::marker::PhantomData;
+
 // You've got to start somewhere
 use constructivism::*;
 
@@ -14,22 +16,87 @@ pub struct Node {
     position: (f32, f32),
 }
 
+pub struct TypeRef<C: Construct + 'static>(PhantomData<C>);
+
+pub fn construct_node<F, P,  const I: u8>(func: F) -> <<Node as Construct>::NestedSequence as Flattern>::Output
+where
+    P: ExtractParams<
+        I, <Node as Construct>::MixedParams,
+        Value = <<Node as Construct>::MixedParams as Extractable>::Output,
+        Rest = <<<<Node as Construct>::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+    >,
+    F: FnOnce(
+        &<Node as Construct>::Params,
+        <<<Node as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Undefined
+    ) -> P
+{
+    construct_inferred::<Node, F, P, I>(func)
+}
+
 // 1.2  **Constructing**: You can use the `construct!` macro to create instances of Constructs.
 //      Please ***note*** the dots at the beginning of the each param, they are required and you
 //      will find this syntax quite useful.
+fn construct_inferred<C: Construct + 'static, F, P, const I: u8>(func: F) -> <C::NestedSequence as Flattern>::Output
+where
+    P: ExtractParams<
+        I, C::MixedParams,
+        Value = <C::MixedParams as Extractable>::Output,
+        Rest = <<<C::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+    >,
+    F: FnOnce(
+        &<C as Construct>::Params,
+        <<<C as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Undefined
+    ) -> P
+{
+    let fields = <<C as Construct>::Params as Singleton>::instance();
+    let params = <<C as Construct>::ExpandedParams as Extractable>::as_params();
+    let defined = func(fields, params);
+    <C as Construct>::construct(defined).flattern()
+}
 
 fn create_node() {
-    let node = construct!(Node {
-        .position: (10., 10.),
-        .hidden: true,
+    let node = construct_node(|fields, params| {
+        let param: &::constructivism::Param<_, _> = &fields.position;
+        let field = param.field();
+        let value = params
+            .field(&field)
+            .define(param.value(((10., 10.)).into()));
+        let params = params + value;
+        let param: &::constructivism::Param<_, _> = &fields.hidden;
+        let field = param.field();
+        let value = params.field(&field).define(param.value((true).into()));
+        let params = params + value;
+        params.defined()
     });
+    // let node =
+    // // construct!(Node {
+    // //     .position: (10., 10.),
+    // //     .hidden: true,
+    // // });
+    // {
+    //     use ::constructivism::traits::*;
+    //     let fields =  <<Node as ::constructivism::Construct> ::Params as ::constructivism::Singleton> ::instance();
+    //     let params =  <<Node as ::constructivism::Construct> ::ExpandedParams as ::constructivism::Extractable> ::as_params();
+    //     let param: &::constructivism::Param<_, _> = &fields.position;
+    //     let field = param.field();
+    //     let value = params
+    //         .field(&field)
+    //         .define(param.value(((10., 10.)).into()));
+    //     let params = params + value;
+    //     let param: &::constructivism::Param<_, _> = &fields.hidden;
+    //     let field = param.field();
+    //     let value = params.field(&field).define(param.value((true).into()));
+    //     let params = params + value;
+    //     let defined_params = params.defined();
+    //     <Node as ::constructivism::Construct>::construct(defined_params).flattern()
+    // };
     assert_eq!(node.position.0, 10.);
     assert_eq!(node.hidden, true);
 }
 
 // 1.3  **Sequences**: A Construct can be declared only in front of another Construct.
 //      `constructivism` comes with only Nothing, () construct. The `Self -> Base` relation
-//      called Sequence in `constrcutivism`. You can omit the Sequence declaration,
+//      called Sequence in `constructivism`. You can omit the Sequence declaration,
 //      `Self -> Nothing` used in this case. If you want to derive Construct on the top of another
 //      meaningful Construct, you have to specify Sequence directly using
 //      `#[construct(/* Sequence */)]` attribute.
@@ -54,29 +121,28 @@ fn create_sequence() {
     assert_eq!(node.hidden, true);
 }
 
-
 // 1.5  **Params**: There are different kind of Params (the things you passing to `construct!(..)`):
 //      - Common: use `Default::default()` if not passed to `construct!(..)`
 //      - Default: use provided value if not passed to `construct!(..)`
 //      - Required: must be passed to `construct!(..)`
 //      - Skip: can't be passed to `construct!(..)`, use Default::default() or provided value
-//      You configure behaviour using `#[param]` attribute when deriving:
+//      You configure behavior using `#[param]` attribute when deriving:
 
 #[derive(Construct)]
 #[construct(Follow -> Node)]
 pub struct Follow {
-    offset: (f32, f32),                 // Common, no #[param]
+    offset: (f32, f32), // Common, no #[param]
 
-    #[param(required)]                  // Required
+    #[param(required)] // Required
     target: Entity,
-    
-    #[param(default = Anchor::Center)]  // Default
+
+    #[param(default = Anchor::Center)] // Default
     anchor: Anchor,
 
-    #[param(skip)]                      // Skip with Default::default()
+    #[param(skip)] // Skip with Default::default()
     last_computed_distance: f32,
 
-    #[param(skip = FollowState::None)]  // Skip with provided value
+    #[param(skip = FollowState::None)] // Skip with provided value
     state: FollowState,
 }
 
@@ -91,19 +157,19 @@ pub enum Anchor {
 
 pub enum FollowState {
     None,
-    Initialized(f32)
+    Initialized(f32),
 }
 
 // 1.6  **Passing params**: When passing params to `construct!(..)` you have to pass all required
-//      for Sequence params, or you will get the comilation error. You can omit non-required params. 
+//      for Sequence params, or you will get the compilation error. You can omit non-required params.
 
 fn create_elements() {
-    // omit everithing, default param values will be used
-    let (rect, node, /* nothing */) = construct!(Rect);
+    // omit everything, default param values will be used
+    let (rect, node /* nothing */) = construct!(Rect);
     assert_eq!(node.hidden, false);
     assert_eq!(rect.size.0, 0.);
 
-    // you have to pass target to Follow, the rest can be omited..
+    // you have to pass target to Follow, the rest can be omitted..
     let (follow, node) = construct!(Follow {
         .target: Entity
     });
@@ -116,10 +182,10 @@ fn create_elements() {
         .target: Entity,
         .offset: (10., 10.),
 
-        // last_computed_distance param is skipped, uncomenting
+        // last_computed_distance param is skipped, uncommenting
         // the next line will result in compilation error
         // error: no field `last_computed_distance` on type `&follow_construct::Params`
-        
+
         // .last_computed_distance: 10.
     });
     assert_eq!(follow.offset.0, 10.);
@@ -131,11 +197,11 @@ fn create_elements() {
 // 2.1  **Designs and Methods**: Every Construct has its own Design. You can implement methods for
 //      a Construct's design:
 impl NodeDesign {
-    pub fn move_to(&self, entity: Entity, position: (f32, f32)) { }
+    pub fn move_to(&self, entity: Entity, position: (f32, f32)) {}
 }
 
 impl RectDesign {
-    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) { }
+    pub fn expand_to(&self, entity: Entity, size: (f32, f32)) {}
 }
 
 // 2.2  **Calling Methods**: You can call methods on a Construct's design. Method resolution
@@ -175,7 +241,7 @@ fn create_button() {
 }
 
 // 3.3  **Segment Design**: Segment has its own Design as well. And the method call resolves
-//      within the Sequence order as well. Segment's designes has one generic parameter - the next
+//      within the Sequence order as well. Segment's designs has one generic parameter - the next
 //      segment/construct, so you have to respect it when implement Segment's Design:
 impl<T> InputDesign<T> {
     fn focus(&self, entity: Entity) {
@@ -301,7 +367,7 @@ derive_construct! {
     // Sequence
     seq => ProgressBar -> Rect;
 
-    // Constructor, all params with defult values
+    // Constructor, all params with default values
     construct => (min: f32 = 0., max: f32 = 1., val: f32 = 0.) -> {
         if max < min {
             max = min;

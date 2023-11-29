@@ -9,10 +9,13 @@ pub trait TypeExt {
 impl TypeExt for Type {
     fn as_ident(&self) -> syn::Result<Ident> {
         let Type::Path(path) = &self else {
-            return Err(syn::Error::new(self.span(), format!(
-                "Can't extract ident from type {}",
-                quote!({#self}).to_string()
-            )))
+            return Err(syn::Error::new(
+                self.span(),
+                format!(
+                    "Can't extract ident from type {}",
+                    quote!({#self}).to_string()
+                ),
+            ));
         };
         if path.path.segments.is_empty() {
             return Err(syn::Error::new(
@@ -30,7 +33,6 @@ impl TypeExt for Type {
     }
 }
 
-
 pub trait Capitalize {
     type Output;
     fn capitalize(&self) -> Self::Output;
@@ -39,16 +41,21 @@ pub trait Capitalize {
 impl<T: AsRef<str>> Capitalize for T {
     type Output = String;
     fn capitalize(&self) -> Self::Output {
-        self.as_ref().chars().enumerate().map(|(idx, ch)| {
-            if idx > 0 {
-                ch
-            } else {
-                ch.to_ascii_uppercase()
-            }
-        }).collect()
+        self.as_ref()
+            .chars()
+            .enumerate()
+            .map(
+                |(idx, ch)| {
+                    if idx > 0 {
+                        ch
+                    } else {
+                        ch.to_ascii_uppercase()
+                    }
+                },
+            )
+            .collect()
     }
 }
-
 
 pub trait ToCamelCase {
     type Output;
@@ -97,9 +104,6 @@ impl Suffix for String {
 impl Suffix for Ident {
     type Output = Ident;
     fn suffix<S: AsRef<str>>(&self, suffix: S) -> Self::Output {
-        Ident::new(
-            &self.to_string().suffix(suffix),
-            self.span(),
-        )
+        Ident::new(&self.to_string().suffix(suffix), self.span())
     }
 }

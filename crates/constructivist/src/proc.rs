@@ -1,15 +1,48 @@
-use proc_macro2::{Ident, TokenStream};
-use syn::{braced, parenthesized, parse::Parse, spanned::Spanned, Expr, Token, Type, token::Brace};
-
-use quote::{format_ident, quote};
-
 use crate::{context::Context, throw};
-
+use proc_macro2::{Ident, TokenStream};
+use quote::{format_ident, quote};
+use syn::{braced, parenthesized, parse::Parse, spanned::Spanned, token::Brace, Expr, Token, Type};
 
 pub trait ContextLike {
     fn path(&self, name: &'static str) -> TokenStream;
     fn constructivism(&self) -> TokenStream {
         self.path("constructivism")
+    }
+}
+
+pub fn build<C: ContextLike, F: FnOnce(Ref<C>) -> syn::Result<TokenStream>>(
+    ctx: C,
+    builder: F,
+) -> syn::Result<TokenStream> {
+    let boxed = Box::new(ctx);
+    let mem = Box::leak(boxed) as *mut C;
+    let result = builder(Ref(mem));
+    unsafe {
+        let _ = *Box::from_raw(mem);
+    }
+    result
+}
+
+pub struct Ref<C: ContextLike>(*mut C);
+
+impl<C: ContextLike> Clone for Ref<C> {
+    fn clone(&self) -> Self {
+        Ref(self.0.clone())
+    }
+}
+
+impl<C: ContextLike> Copy for Ref<C> {}
+
+impl<C: ContextLike> std::ops::Deref for Ref<C> {
+    type Target = C;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.0.as_ref().unwrap() }
+    }
+}
+
+impl<C: ContextLike> std::ops::DerefMut for Ref<C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.0.as_mut().unwrap() }
     }
 }
 
@@ -19,10 +52,9 @@ impl ContextLike for Context {
     }
 }
 
-
 pub trait Value: Parse + Clone {
     type Context: ContextLike;
-    fn build(item: &Self, ctx: &Self::Context) -> syn::Result<TokenStream>;
+    fn build(item: &Self, ctx: Ref<Self::Context>) -> syn::Result<TokenStream>;
     fn parse2(stream: TokenStream) -> syn::Result<Self> {
         syn::parse2::<Self>(stream)
     }
@@ -30,7 +62,7 @@ pub trait Value: Parse + Clone {
 
 impl Value for Expr {
     type Context = Context;
-    fn build(item: &Self, _: &Self::Context) -> syn::Result<TokenStream> {
+    fn build(item: &Self, _: Ref<Self::Context>) -> syn::Result<TokenStream> {
         Ok(quote! { #item })
     }
 }
@@ -75,7 +107,7 @@ impl<V: Value> Param<V> {
     //         let field = param.field();
     //         let value = $params.field(&field).define(param.value($e.into()));
     //         let $params = $params + value;
-    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: Ref<V::Context>) -> syn::Result<TokenStream> {
         let ident = &self.ident;
         let value = V::build(&self.value, ctx)?;
         let lib = ctx.path("constructivism");
@@ -110,7 +142,7 @@ impl<V: Value> Params<V> {
     pub fn new() -> Self {
         Params { items: vec![] }
     }
-    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: Ref<V::Context>) -> syn::Result<TokenStream> {
         let mut out = quote! {};
         for param in self.items.iter() {
             let param = param.build(ctx)?;
@@ -133,15 +165,21 @@ impl<V: Value> Params<V> {
         content.parse()
     }
 }
+
+#[derive(Clone)]
 pub struct Construct<V: Value> {
-    pub ty: Type,
+    pub ty: Option<Type>,
     pub flattern: bool,
     pub params: Params<V>,
 }
 
 impl<V: Value> Parse for Construct<V> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let ty = input.parse()?;
+        let ty = if input.fork().parse::<Type>().is_ok() {
+            Some(input.parse()?)
+        } else {
+            None
+        };
         let mut flattern = true;
         if input.peek(Token![*]) {
             input.parse::<Token![*]>()?;
@@ -177,23 +215,31 @@ impl<V: Value> Parse for Construct<V> {
 //     };
 // }
 impl<V: Value> Construct<V> {
-    pub fn build(&self, ctx: &V::Context) -> syn::Result<TokenStream> {
+    pub fn build(&self, ctx: Ref<V::Context>) -> syn::Result<TokenStream> {
         let lib = ctx.path("constructivism");
         let ty = &self.ty;
-        let flattern = if self.flattern {
-            quote! { .flattern() }
-        } else {
-            quote! {}
-        };
         let body = self.params.build(ctx)?;
-        Ok(quote! {{
-            use #lib::traits::*;
-            let fields = <<#ty as #lib::Construct>::Params as #lib::Singleton>::instance();
-            let params = <<#ty as #lib::Construct>::ExpandedParams as #lib::Extractable>::as_params();
-            #body
-            let defined_params = params.defined();
-            <#ty as #lib::Construct>::construct(defined_params)#flattern
-        }})
+        if let Some(ty) = ty {
+            let flattern = if self.flattern {
+                quote! { .flattern() }
+            } else {
+                quote! {}
+            };
+            Ok(quote! {{
+                use #lib::traits::*;
+                let fields = <<#ty as #lib::Construct>::Params as #lib::Singleton>::instance();
+                let params = <<#ty as #lib::Construct>::ExpandedParams as #lib::Extractable>::as_params();
+                #body
+                let defined_params = params.defined();
+                <#ty as #lib::Construct>::construct(defined_params)#flattern
+            }})
+        } else {
+            Ok(quote! {{
+                use #lib::traits::*;
+                #body
+                params.defined()
+            }})
+        }
     }
 }
 

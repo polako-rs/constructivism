@@ -55,7 +55,6 @@ impl<T: Segment> Construct for T {
     type Design = <T as Segment>::Design<()>;
     type Props<M: 'static> = <T as Segment>::Props<M, NothingProps<M>>;
 
-
     type MixedParams = <T as ConstructItem>::Params;
     type ExpandedParams = <T as ConstructItem>::Params;
     type NestedSequence = (T, ());
@@ -64,9 +63,35 @@ impl<T: Segment> Construct for T {
         I, Self::MixedParams,
         Value = <Self::MixedParams as Extractable>::Output,
         Rest = <<<Self::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
-    > {
+    >{
         let (params, _) = params.extract_params();
         (<T as ConstructItem>::construct_item(params), ())
+    }
+}
+
+pub struct Constructor<C: Construct + 'static>(PhantomData<C>);
+impl<C: Construct + 'static> Singleton for Constructor<C> {
+    fn instance() -> &'static Self {
+        &Constructor(PhantomData)
+    }
+}
+impl<C: Construct + 'static> Constructor<C> {
+    pub fn construct<F, P, const I: u8>(&self, func: F) -> <C::NestedSequence as Flattern>::Output
+    where
+        P: ExtractParams<
+            I, C::MixedParams,
+            Value = <C::MixedParams as Extractable>::Output,
+            Rest = <<<C::Base as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Defined
+        >,
+        F: FnOnce(
+            &<C as Construct>::Params,
+            <<<C as Construct>::ExpandedParams as Extractable>::Input as AsParams>::Undefined
+        ) -> P
+    {
+        let fields = <<C as Construct>::Params as Singleton>::instance();
+        let params = <<C as Construct>::ExpandedParams as Extractable>::as_params();
+        let defined = func(fields, params);
+        <C as Construct>::construct(defined).flattern()
     }
 }
 
@@ -83,16 +108,12 @@ impl<M> Singleton for NothingProps<M> {
         &NothingProps(PhantomData)
     }
 }
-impl<M: 'static> Props<M> for NothingProps<M> {
-    
-}
-impl Props<Get> for NothingProps<Lookup> { }
-impl Props<Set> for NothingProps<Lookup> { }
-impl Props<Describe> for NothingProps<Lookup> { }
-impl NothingProps<Get> {
-}
-impl NothingProps<Set> {
-}
+impl<M: 'static> Props<M> for NothingProps<M> {}
+impl Props<Get> for NothingProps<Lookup> {}
+impl Props<Set> for NothingProps<Lookup> {}
+impl Props<Describe> for NothingProps<Lookup> {}
+impl NothingProps<Get> {}
+impl NothingProps<Set> {}
 impl NothingProps<Lookup> {
     pub fn getters(&self) -> &'static NothingProps<Get> {
         &NothingProps(PhantomData)
@@ -421,7 +442,6 @@ impl<'a, T: Clone> Value<'a, T> {
             Self::Ref(r) => (*r).clone(),
         }
     }
-
 }
 
 #[derive(Copy)]
@@ -444,7 +464,6 @@ pub struct Prop<H, T> {
     getter: Getter<H, T>,
     setter: Setter<H, T>,
 }
-
 
 pub trait TypeReference {
     type Type;

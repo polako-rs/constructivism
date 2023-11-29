@@ -8,9 +8,9 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
-    parse2,
+    parse2, parse_quote,
     spanned::Spanned,
-    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Token, Type, parse_quote,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Token, Type,
 };
 
 pub struct Declarations {
@@ -73,7 +73,7 @@ pub enum ParamKind {
     Common,
     Required,
     Default(Expr),
-    Skip(Expr)
+    Skip(Expr),
 }
 impl Parse for ParamKind {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -139,7 +139,7 @@ impl Param {
     pub fn skip(&self) -> Option<&Expr> {
         match self.kind {
             ParamKind::Skip(ref expr) => Some(expr),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -173,7 +173,8 @@ impl Params for Vec<Param> {
             let Some(name) = field.ident.clone() else {
                 throw!(field, "#[derive({})] only supports named structs. You can use `{}!` for complex cases.", name, alter);
             };
-            let kind = field.attrs
+            let kind = field
+                .attrs
                 .iter()
                 .filter(|a| a.path().is_ident("param"))
                 .map(|a| a.parse_args())
@@ -216,7 +217,8 @@ impl Params for Vec<Param> {
                     #docs
                     pub #ident: #lib::Param<#ident, #param_ty>,
                 };
-                fields_new = quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
+                fields_new =
+                    quote! { #fields_new #ident: #lib::Param(::std::marker::PhantomData), };
                 let default = match &param.kind {
                     ParamKind::Default(default) => {
                         quote! {
@@ -235,12 +237,12 @@ impl Params for Vec<Param> {
                                 }
                             }
                         }
-                    },
+                    }
                     ParamKind::Required => {
                         quote! {}
-                    },
+                    }
                     ParamKind::Skip(skip) => {
-                        throw!(skip, "Unexected skip param");
+                        throw!(skip, "Unexpected skip param");
                     }
                 };
                 impls = quote! { #impls
@@ -314,7 +316,7 @@ impl Sequence {
                 this: parse_quote! { #ty },
                 next: parse_quote! { Nothing },
                 segments: vec![],
-            })
+            });
         }
         if attrs.len() > 1 {
             throw!(attrs[1], "Unexpected #[construct(..) attribute");
@@ -1003,10 +1005,7 @@ impl DeriveConstruct {
 
     pub fn design_ident(&self) -> syn::Result<Ident> {
         let type_ident = self.ty.as_ident()?;
-        Ok(format_ident!(
-            "{}Design",
-            type_ident.to_string()
-        ))
+        Ok(format_ident!("{}Design", type_ident.to_string()))
     }
 
     pub fn build(&self, ctx: &Context) -> syn::Result<TokenStream> {
@@ -1131,7 +1130,10 @@ impl DeriveConstruct {
         let derive = {
             if self.sequence.this.to_token_stream().to_string() != ty.to_token_stream().to_string()
             {
-                throw!(self.sequence.this, "Seqence head doesn't match struct name");
+                throw!(
+                    self.sequence.this,
+                    "Sequence head doesn't match struct name"
+                );
             }
             let this = &self.sequence.this;
             let base = &self.sequence.next;

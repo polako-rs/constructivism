@@ -46,7 +46,7 @@ pub fn implement_constructivism(max_size: u8) -> TokenStream {
         .collect::<Vec<_>>()
         .join("\n");
     let Ok(core) = TokenStream::from_str(source.as_str()) else {
-        return quote! { compile_error! ("Coudn't parse constructivism::core")}
+        return quote! { compile_error! ("Coudn't parse constructivism::core")};
     };
     quote! {
         #core
