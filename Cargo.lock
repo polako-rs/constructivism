@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "constructivism"
-version = "0.0.2"
+version = "0.3.0"
 dependencies = [
  "constructivism_macro",
  "tuple_utils",
@@ -12,7 +12,7 @@ dependencies = [
 
 [[package]]
 name = "constructivism_macro"
-version = "0.0.1"
+version = "0.3.0"
 dependencies = [
  "constructivist",
  "proc-macro2",
@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "constructivism_macro_gen"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "quote",
  "syn",
@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "constructivist"
-version = "0.0.1"
+version = "0.3.0"
 dependencies = [
  "constructivism_macro_gen",
  "proc-macro2",

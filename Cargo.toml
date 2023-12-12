@@ -1,6 +1,6 @@
 [package]
 name = "constructivism"
-version = "0.0.2"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -20,5 +20,5 @@ members = [
 ]
 
 [dependencies]
-constructivism_macro = { path = "crates/constructivism_macro", version = "0.0.1"}
+constructivism_macro = { path = "crates/constructivism_macro", version = "0.3.0"}
 tuple_utils = "0.4.0"
